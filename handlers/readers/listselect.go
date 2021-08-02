@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"ufygobot/handlers/buttons"
-	"ufygobot/logger"
+	"github.com/ufy-it/go-telegram-bot/handlers/buttons"
+	"github.com/ufy-it/go-telegram-bot/logger"
 )
 
 // ListItem is a struct with wisible text and inner data

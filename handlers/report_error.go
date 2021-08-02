@@ -1,6 +1,6 @@
 package handlers
 
-import "ufygobot/handlers/readers"
+import "github.com/ufy-it/go-telegram-bot/handlers/readers"
 
 // ReportErrorHandler is a simple handler that returns error to the conversation handler loop
 func ReportErrorHandler(conversation readers.BotConversation, err error) Handler {

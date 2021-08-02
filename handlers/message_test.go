@@ -2,8 +2,9 @@ package handlers_test
 
 import (
 	"testing"
-	"ufygobot/handlers"
-	"ufygobot/state"
+
+	"github.com/ufy-it/go-telegram-bot/handlers"
+	"github.com/ufy-it/go-telegram-bot/state"
 
 	tgbotapi "github.com/Syfaro/telegram-bot-api"
 )

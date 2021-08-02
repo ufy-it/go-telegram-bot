@@ -5,8 +5,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"ufygobot/handlers/buttons"
-	"ufygobot/logger"
+
+	"github.com/ufy-it/go-telegram-bot/handlers/buttons"
+	"github.com/ufy-it/go-telegram-bot/logger"
 )
 
 type CalendarMode int

@@ -1,5 +1,4 @@
-module ufygobot
-
+module github.com/ufy-it/go-telegram-bot
 go 1.15
 
 require (

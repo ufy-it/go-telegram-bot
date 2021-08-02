@@ -1,7 +1,7 @@
 package readers
 
 import (
-	"ufygobot/handlers/buttons"
+	"github.com/ufy-it/go-telegram-bot/handlers/buttons"
 
 	tgbotapi "github.com/Syfaro/telegram-bot-api"
 )

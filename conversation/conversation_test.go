@@ -7,11 +7,11 @@ import (
 	"sync"
 	"testing"
 	"time"
-	"ufygobot/conversation"
 
-	"ufygobot/handlers"
-	"ufygobot/handlers/readers"
-	"ufygobot/state"
+	"github.com/ufy-it/go-telegram-bot/conversation"
+	"github.com/ufy-it/go-telegram-bot/handlers"
+	"github.com/ufy-it/go-telegram-bot/handlers/readers"
+	"github.com/ufy-it/go-telegram-bot/state"
 
 	tgbotapi "github.com/Syfaro/telegram-bot-api"
 )
@@ -765,7 +765,7 @@ func TestSendGeneralMessage(t *testing.T) {
 
 func TestSendGeneralMessageConversationClose(t *testing.T) {
 	var sendErr error
-	var sendID int
+	var sendID int = 0
 	config := conversation.Config{
 		MaxMessageQueue: 1,
 		Handlers: &handlers.CommandHandlers{

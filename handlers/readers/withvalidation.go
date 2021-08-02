@@ -3,8 +3,9 @@ package readers
 import (
 	"regexp"
 	"time"
-	"ufygobot/handlers/buttons"
-	"ufygobot/logger"
+
+	"github.com/ufy-it/go-telegram-bot/handlers/buttons"
+	"github.com/ufy-it/go-telegram-bot/logger"
 
 	tgbotapi "github.com/Syfaro/telegram-bot-api"
 )

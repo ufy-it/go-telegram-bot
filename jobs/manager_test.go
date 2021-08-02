@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"ufygobot/jobs"
+	"github.com/ufy-it/go-telegram-bot/jobs"
 )
 
 type mockMessage struct {

@@ -8,9 +8,9 @@ import (
 	"sync"
 	"syscall"
 
-	"ufygobot/dispatcher"
-	"ufygobot/jobs"
-	"ufygobot/logger"
+	"github.com/ufy-it/go-telegram-bot/dispatcher"
+	"github.com/ufy-it/go-telegram-bot/jobs"
+	"github.com/ufy-it/go-telegram-bot/logger"
 
 	tgbotapi "github.com/Syfaro/telegram-bot-api"
 )

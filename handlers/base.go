@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"regexp"
 
-	"ufygobot/handlers/readers"
-	"ufygobot/logger"
-	"ufygobot/state"
+	"github.com/ufy-it/go-telegram-bot/handlers/readers"
+	"github.com/ufy-it/go-telegram-bot/logger"
+	"github.com/ufy-it/go-telegram-bot/state"
 
 	tgbotapi "github.com/Syfaro/telegram-bot-api"
 )

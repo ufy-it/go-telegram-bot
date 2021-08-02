@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"ufygobot/conversation"
-	"ufygobot/logger"
-	"ufygobot/state"
+	"github.com/ufy-it/go-telegram-bot/conversation"
+	"github.com/ufy-it/go-telegram-bot/logger"
+	"github.com/ufy-it/go-telegram-bot/state"
 
 	tgbotapi "github.com/Syfaro/telegram-bot-api"
 )
