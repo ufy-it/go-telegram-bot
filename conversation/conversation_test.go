@@ -770,7 +770,7 @@ func TestSendGeneralMessageConversationClose(t *testing.T) {
 		MaxMessageQueue: 1,
 		Handlers: &handlers.CommandHandlers{
 			Default: handlers.OneStepHandlerCreator(func(conversation readers.BotConversation, firstMessage *tgbotapi.Message) error {
-				wait(2 * time.Millisecond)
+				wait(3 * time.Millisecond)
 				sendID, sendErr = conversation.SendGeneralMessage(tgbotapi.NewMessage(22, "some text"))
 				return nil
 			}),
@@ -789,7 +789,7 @@ func TestSendGeneralMessageConversationClose(t *testing.T) {
 	}
 	wait(1 * time.Millisecond)
 	conv.Kill()
-	if !wgWaitTimeout(2*time.Millisecond, &wg) {
+	if !wgWaitTimeout(3*time.Millisecond, &wg) {
 		t.Error("handler should finish in 2 ms")
 	}
 	if sendID != 0 || sendErr == nil || sendErr.Error() != "the conversation is closed" {
