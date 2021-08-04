@@ -19,7 +19,7 @@ import (
 type Config struct {
 	APIToken               string                   // Bot API token
 	Debug                  bool                     // flag to indicate whether run the bot in debug
-	WebHook                bool                     // flag to indicate whether to run webhook or long pooling
+	WebHook                bool                     // flag to indicate whether to run webhook or long pulling
 	Dispatcher             dispatcher.Config        // configuration for the dispatcher
 	Jobs                   jobs.JobDescriptionsList // list of jobs to run
 	UpdateTimeout          int
