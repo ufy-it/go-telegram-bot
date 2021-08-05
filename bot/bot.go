@@ -1,11 +1,11 @@
 package bot
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 
 	"github.com/ufy-it/go-telegram-bot/dispatcher"
@@ -33,7 +33,7 @@ type Config struct {
 }
 
 // RunBot handles conversation with bot users and runs jobs in an infinite loop
-func RunBot(config Config) error {
+func RunBot(ctx context.Context, config Config) error {
 	bot, err := tgbotapi.NewBotAPI(config.APIToken)
 	if err != nil {
 		return fmt.Errorf("Error accessing the bot: %v", err)
@@ -61,8 +61,10 @@ func RunBot(config Config) error {
 		ucfg.Timeout = config.UpdateTimeout
 		upd, _ = bot.GetUpdatesChan(ucfg)
 	}
+	ctxWithCancel, cancelContext := context.WithCancel(ctx)
+	defer cancelContext()
 	disp := dispatcher.NewDispatcher(config.Dispatcher, bot, config.StateFile)
-	manager := jobs.NewJobManager(config.Jobs, disp)
+	jobs.RunJobs(ctxWithCancel, config.Jobs, disp)
 	c := make(chan os.Signal) // Gracefully terminate the program
 	signal.Notify(c, os.Interrupt, os.Kill, syscall.SIGTERM)
 
@@ -78,26 +80,19 @@ func RunBot(config Config) error {
 			}
 		case sig := <-c:
 			logger.Note("Recieved interrupt signal %v", sig)
-			wg := sync.WaitGroup{}
-			var dispCloseErr error
-			var managerStopErr error
-			// close dispatcher and job manager in parallel
-			go func() {
-				wg.Add(1)
-				dispCloseErr = disp.Close()
-				wg.Done()
-			}()
-			go func() {
-				wg.Add(1)
-				managerStopErr = manager.Stop(config.JobsStopTimeoutSeconds)
-				wg.Done()
-			}()
-			wg.Wait()
-			if dispCloseErr != nil || managerStopErr != nil {
-				return fmt.Errorf("error during closing dispather: %v, error during stopping jobs: %v", dispCloseErr, managerStopErr)
+			cancelContext()
+			err = disp.Close()
+			if err != nil {
+				return fmt.Errorf("error during closing dispather: %v", err)
 			}
 			logger.Note("Dispatcher closed")
-			logger.Note("Jobs stopped")
+			return nil
+		case <-ctx.Done():
+			err = disp.Close()
+			if err != nil {
+				return fmt.Errorf("error during closing dispather: %v", err)
+			}
+			logger.Note("Dispatcher closed")
 			return nil
 		}
 	}

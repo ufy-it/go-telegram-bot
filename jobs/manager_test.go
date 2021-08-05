@@ -1,6 +1,7 @@
 package jobs_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -25,37 +26,33 @@ func newMockMessager() *mockMessager {
 	}
 }
 
-func (m *mockMessager) SendSingleMessage(chatID int64, text string) error {
+func (m *mockMessager) SendSingleMessage(ctx context.Context, chatID int64, text string) error {
 	m.messages = append(m.messages, mockMessage{chatID, text})
 	return nil
 }
 
 // Test that a job starts after an offset and runs each second
-func TestJobManagerJobIntervals(t *testing.T) {
+func TestJobIntervals(t *testing.T) {
 	c := make(chan struct{})
 	ind := 0
-	job := func(messager jobs.Messager) error {
+	job := func(ctx context.Context, messager jobs.Messager) error {
 		if ind < 3 {
 			c <- struct{}{}
-			messager.SendSingleMessage(int64(ind), strconv.Itoa(ind))
+			messager.SendSingleMessage(ctx, int64(ind), strconv.Itoa(ind))
 			ind++
 		}
 		return nil
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	startPoint := time.Now()
 	messager := newMockMessager()
-	manager := jobs.NewJobManager(jobs.JobDescriptionsList{
+	go jobs.RunJob(ctx,
 		jobs.JobDescription{
 			OffsetSeconds:   2,
 			IntervalSeconds: 1,
 			Body:            job,
-		},
-	}, messager)
-	defer func() {
-		if err := manager.Stop(1); err != nil {
-			t.Error(err.Error())
-		}
-	}()
+		}, messager)
 	var timePoint time.Time
 	checkStep := func(targetIntervalSeconds int) error {
 		select {
@@ -96,22 +93,19 @@ func TestJobManagerJobIntervals(t *testing.T) {
 
 func TestThreeJobsParallelRun(t *testing.T) {
 	c := make(chan int, 3)
-	genJob := func(i int) func(messager jobs.Messager) error {
-		return func(messager jobs.Messager) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	genJob := func(i int) func(ctx context.Context, messager jobs.Messager) error {
+		return func(ctx context.Context, messager jobs.Messager) error {
 			c <- i
 			return nil
 		}
 	}
-	manager := jobs.NewJobManager(jobs.JobDescriptionsList{
+	jobs.RunJobs(ctx, jobs.JobDescriptionsList{
 		{0, 3, genJob(1)},
 		{1, 3, genJob(2)},
 		{2, 3, genJob(3)},
 	}, newMockMessager())
-	defer func() {
-		if err := manager.Stop(1); err != nil {
-			t.Error(err.Error())
-		}
-	}()
 	checkStep := func(i int) {
 		select {
 		case x := <-c:
@@ -131,16 +125,14 @@ func TestThreeJobsParallelRun(t *testing.T) {
 }
 
 func TestCloseBeforeOffset(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
 	c := make(chan struct{})
-	manager := jobs.NewJobManager(jobs.JobDescriptionsList{
-		{1, 1, func(messager jobs.Messager) error {
+	go jobs.RunJob(ctx,
+		jobs.JobDescription{1, 1, func(ctx context.Context, messager jobs.Messager) error {
 			c <- struct{}{}
 			return nil
-		}},
-	}, newMockMessager())
-	if err := manager.Stop(1); err != nil {
-		t.Errorf("JobManager did not stop: %v", err)
-	}
+		}}, newMockMessager())
+	cancel()
 	select {
 	case <-c:
 		t.Error("job did not stop")
@@ -149,21 +141,19 @@ func TestCloseBeforeOffset(t *testing.T) {
 }
 
 func TestCloseInInterval(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
 	c := make(chan struct{})
-	manager := jobs.NewJobManager(jobs.JobDescriptionsList{
-		{1, 1, func(messager jobs.Messager) error {
+	go jobs.RunJob(ctx,
+		jobs.JobDescription{1, 1, func(ctx context.Context, messager jobs.Messager) error {
 			c <- struct{}{}
 			return nil
-		}},
-	}, newMockMessager())
+		}}, newMockMessager())
 	select {
 	case <-c:
 	case <-time.After(time.Duration(2) * time.Second):
 		t.Errorf("no job run during 2 seconds")
 	}
-	if err := manager.Stop(1); err != nil {
-		t.Errorf("JobManager did not stop: %v", err)
-	}
+	cancel()
 	select {
 	case <-c:
 		t.Error("job did not stop")

@@ -1,6 +1,7 @@
 package dispatcher
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -158,7 +159,7 @@ func (d *Dispatcher) isCancelCommand(update *tgbotapi.Update) bool {
 }
 
 // SendSingleMessage waits until the conversation with chatID is closed and sends a single message from bot to a user
-func (d *Dispatcher) SendSingleMessage(chatID int64, text string) error {
+func (d *Dispatcher) SendSingleMessage(ctx context.Context, chatID int64, text string) error {
 	closedErr := errors.New("the dispatcher is closed")
 	msg := tgbotapi.NewMessage(chatID, text)
 	for {
@@ -176,7 +177,11 @@ func (d *Dispatcher) SendSingleMessage(chatID int64, text string) error {
 			return err
 		}
 		d.mu.Unlock()
-		time.Sleep(time.Duration(time.Duration(d.singleMessageTrySendInterval) * time.Second))
+		select {
+		case <-ctx.Done():
+			return errors.New("Cannot send a message, context closed")
+		case <-time.After(time.Duration(time.Duration(d.singleMessageTrySendInterval) * time.Second)):
+		}
 	}
 }
 
