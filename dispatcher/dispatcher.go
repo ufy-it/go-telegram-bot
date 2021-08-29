@@ -8,23 +8,28 @@ import (
 	"time"
 
 	"github.com/ufy-it/go-telegram-bot/conversation"
+	"github.com/ufy-it/go-telegram-bot/handlers"
 	"github.com/ufy-it/go-telegram-bot/logger"
 	"github.com/ufy-it/go-telegram-bot/state"
 
 	tgbotapi "github.com/Syfaro/telegram-bot-api"
 )
 
+// conversationWithCancel contains a conversation object and CancelFunction for the conversation context
+type conversatonWithCancel struct {
+	c      *conversation.BotConversation
+	cancel context.CancelFunc
+}
+
 // Dispatcher is an object that manages conversations and routers input messsages to needed conversations
 type Dispatcher struct {
 	maxOpenConversations int
-	closed               bool
-	closeTimeoutSeconds  int
 
-	mu sync.Mutex     //mutex to sync operations over the conversations map between main thread and cleaning routing
-	wg sync.WaitGroup // wait group to finish all routins
+	mu sync.Mutex //mutex to sync operations over the conversations map between main thread and handler routins
 
-	conversations      map[int64]conversation.InputConversation
+	conversations      map[int64]conversatonWithCancel
 	conversationConfig conversation.Config
+	commandHandlers    *handlers.CommandHandlers // list of command handlers
 
 	singleMessageTrySendInterval   int
 	cancelCommand                  string // command that cancels any conversation
@@ -32,99 +37,149 @@ type Dispatcher struct {
 
 	bot   *tgbotapi.BotAPI
 	state state.BotState
+
+	incomeCh chan *tgbotapi.Update
 }
 
 // Config contains configuration parameters for a new dispatcher
 type Config struct {
-	MaxOpenConversations           int                 // the maximum number of open conversations
-	CloseTimeoutSeconds            int                 // timeout in seconds for closing the dispatcher
-	ClearJobInterval               int                 // interval in seconds between Cleaning Job runs
-	SingleMessageTrySendInterval   int                 // interval between several tries of send single message to a user
-	ConversationConfig             conversation.Config // configuration for a conversation
-	CancelCommand                  string              // the command that a user can use to cancel any conversation
-	ToManyOpenConversationsMessage string              // message to send to a user if a conversation cannot be started
+	MaxOpenConversations           int                       // the maximum number of open conversations
+	SingleMessageTrySendInterval   int                       // interval between several tries of send single message to a user
+	ConversationConfig             conversation.Config       // configuration for a conversation
+	CancelCommand                  string                    // the command that a user can use to cancel any conversation
+	ToManyOpenConversationsMessage string                    // message to send to a user if a conversation cannot be started
+	Handlers                       *handlers.CommandHandlers // list of handlers for command handling
 }
 
-// clearOldConversation should run in a separate routine
-// and periodically remove outdated conversations
-func (d *Dispatcher) clearOldConversations(intervalSeconds int) {
-	d.wg.Add(1)
-	defer d.wg.Done()
+// start conversation handling
+func (d *Dispatcher) handleConversation(ctx context.Context, conv *conversation.BotConversation) {
+	var exit bool = false
 	for {
-		if d.IsClosed() {
-			return
-		}
-		d.mu.Lock()
-		idsToDelete := make([]int64, 0)
-		for id, conversation := range d.conversations {
-			if conversation == nil {
-				idsToDelete = append(idsToDelete, id)
-				continue
+		update := d.state.GetConversatonFirstUpdate(conv.ChatID())
+		if update == nil { // if the conversation is not started from the state
+			d.mu.Lock() // to make sure that no new messagess will arrive to this conversation
+			update, exit = conv.GetFirstUpdateFromUser(ctx)
+			if exit {
+				delete(d.conversations, conv.ChatID())                // all new messages will go to a new go-routine
+				err := d.state.RemoveConverastionState(conv.ChatID()) // this is still under the lock to prevent starting a new go-routine that uses the same state
+				d.mu.Unlock()
+				if err != nil {
+					logger.Error("cannot remove conversation state: %v", err)
+				}
+				return // exit handling loop as there is no active messages, or the parent context is closed
+			} else {
+				d.mu.Unlock()
+				err := d.state.StartConversationWithUpdate(conv.ChatID(), update)
+				if err != nil {
+					logger.Error("cannot add conversation to state: %v", err)
+				}
 			}
-			isTimeout, err := conversation.Timeout()
+		}
+		if update.Message == nil {
+			logger.Warning("cannot process non-message high-level command in conversation with %d", conv.ChatID())
+			d.state.RemoveConverastionState(conv.ChatID())
+			continue
+		}
+		message := update.Message
+		var handler handlers.Handler = nil
+		if update.Message.Photo != nil && len(*update.Message.Photo) > 0 && d.commandHandlers.Image != nil {
+			handler = d.commandHandlers.Image(conv, message) // use image handler
+		} else {
+			for _, creator := range d.commandHandlers.List { // find corresponding handler for the first message
+				if creator.CommandRe.MatchString(message.Text) || creator.CommandRe.MatchString(message.Command()) {
+					handler = creator.HandlerCreator(conv, message)
+					break
+				}
+			}
+		}
+		if handler == nil {
+			handler = d.commandHandlers.Default(conv, message) // use default handler if there is no suitable
+		}
+		err := handler.Execute(d.state) // execute handler
+		if err != nil {
+			logger.Error("in conversation with %d got error: %v", conv.ChatID(), err)
+			_, err = conv.SendText(d.commandHandlers.UserErrorMessage)
 			if err != nil {
-				logger.Warning("error during cleaning conversations: %v", err)
-			}
-			if isTimeout {
-				idsToDelete = append(idsToDelete, id)
+				logger.Warning("cannot send error notification to %d", conv.ChatID())
 			}
 		}
-		for _, id := range idsToDelete {
-			delete(d.conversations, id)
+		err = d.state.RemoveConverastionState(conv.ChatID()) // clear state for the conversation
+		if err != nil {
+			logger.Error("cannot remove conversation state: %v", err)
 		}
-		d.mu.Unlock()
-		time.Sleep(time.Duration(time.Duration(intervalSeconds) * time.Second))
 	}
 }
 
-// Close kills all conversations
-func (d *Dispatcher) Close() error {
-	if d.IsClosed() {
-		return errors.New("cannot close Dispatcher that is already closed")
+func (d *Dispatcher) dispatchUpdate(ctx context.Context, update *tgbotapi.Update) error {
+	select {
+	case <-ctx.Done():
+		return errors.New("cannot dispatch update, context is closed")
+	default:
 	}
-	d.closed = true // the order of exiting is important. Keep multythreading in mind before changing anything
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	err := d.state.Close()
+	chatID, err := conversation.GetUpdateChatID(update)
 	if err != nil {
-		logger.Warning("could not save state to file: %v", err)
+		return err
 	}
-	for _, conv := range d.conversations {
-		conv.Kill()
-	}
-	for id := range d.conversations {
-		delete(d.conversations, id)
-	}
+	if conv, ok := d.conversations[chatID]; ok {
+		if d.isCancelCommand(update) {
+			err := conv.c.CancelByUser()
+			conv.cancel()
+			delete(d.conversations, chatID)
+			return err
+		}
+		return conv.c.PushUpdate(update)
+	} else if len(d.conversations) < d.maxOpenConversations {
+		conv, err := conversation.NewConversation(chatID, d.bot, d.state, d.conversationConfig)
+		if err != nil {
+			return err
+		}
 
-	c := make(chan struct{})
-	go func() {
-		defer close(c)
-		d.wg.Wait()
-	}()
+		err = conv.PushUpdate(update)
+		if err != nil {
+			return err
+		}
 
-	select {
-	case <-c: // everything finished successfully
+		convCtx, cancel := context.WithCancel(ctx)
+		d.conversations[chatID] = conversatonWithCancel{conv, cancel}
+		go d.handleConversation(convCtx, conv)
 		return nil
-	case <-time.After(time.Duration(d.closeTimeoutSeconds) * time.Second):
-		return errors.New("some threads were not finished in time")
+	} else {
+		msg := tgbotapi.NewMessage(chatID, d.toManyOpenConversationsMessage)
+		_, err := d.bot.Send(msg)
+		return fmt.Errorf("to many open conversations (%v)", err)
+	}
+}
+
+// dispatchLoop waits for a new update in incomeCh and dispatch it
+func (d *Dispatcher) dispatchLoop(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case update := <-d.incomeCh:
+			err := d.dispatchUpdate(ctx, update)
+			if err != nil {
+				logger.Error("cannot dispatch an update: %v", err)
+			}
+		}
 	}
 }
 
 // NewDispatcher creates a new Dispatcher objects and starts a separate thread to clear old conversations
-func NewDispatcher(config Config, bot *tgbotapi.BotAPI, stateFile string) *Dispatcher {
+func NewDispatcher(ctx context.Context, config Config, bot *tgbotapi.BotAPI, stateFile string) *Dispatcher {
 	d := &Dispatcher{
-		conversations:                  make(map[int64]conversation.InputConversation),
+		conversations:                  make(map[int64]conversatonWithCancel),
 		conversationConfig:             config.ConversationConfig,
 		maxOpenConversations:           config.MaxOpenConversations,
 		singleMessageTrySendInterval:   config.SingleMessageTrySendInterval,
 		bot:                            bot,
 		mu:                             sync.Mutex{},
-		wg:                             sync.WaitGroup{},
-		closed:                         false,
-		closeTimeoutSeconds:            config.CloseTimeoutSeconds,
 		cancelCommand:                  config.CancelCommand,
 		toManyOpenConversationsMessage: config.ToManyOpenConversationsMessage,
 		state:                          state.NewBotState(),
+		incomeCh:                       make(chan *tgbotapi.Update),
 	}
 	if stateFile != "" { //load previouse state from file
 		err := d.state.LoadState(stateFile)
@@ -134,23 +189,21 @@ func NewDispatcher(config Config, bot *tgbotapi.BotAPI, stateFile string) *Dispa
 	}
 	// resume conversations from the state
 	for _, chatID := range d.state.GetConversations() {
-		conv, err := conversation.NewConversation(chatID, d.bot, d.state, &d.wg, d.conversationConfig)
+		conv, err := conversation.NewConversation(chatID, d.bot, d.state, d.conversationConfig)
 		if err != nil {
 			logger.Error(err.Error())
 			continue
 		}
-		d.conversations[chatID] = conv
+		convCtx, cancel := context.WithCancel(ctx)
+		d.conversations[chatID] = conversatonWithCancel{conv, cancel}
 		if _, ok := d.conversations[chatID]; !ok {
 			logger.Warning("cannot start conversation with %d from state", chatID)
+		} else {
+			go d.handleConversation(convCtx, conv)
 		}
 	}
-	go d.clearOldConversations(config.ClearJobInterval) //start cleaning in a separate thread
+	go d.dispatchLoop(ctx) // start the dispaching loop
 	return d
-}
-
-// IsClosed shows whether the dispatcher has been closed, or is active
-func (d *Dispatcher) IsClosed() bool {
-	return d.closed
 }
 
 // isCancelCommand returns true if a user entered cancel command
@@ -160,64 +213,26 @@ func (d *Dispatcher) isCancelCommand(update *tgbotapi.Update) bool {
 
 // SendSingleMessage waits until the conversation with chatID is closed and sends a single message from bot to a user
 func (d *Dispatcher) SendSingleMessage(ctx context.Context, chatID int64, text string) error {
-	closedErr := errors.New("the dispatcher is closed")
+	closedErr := errors.New("Cannot send a message, context closed")
 	msg := tgbotapi.NewMessage(chatID, text)
 	for {
-		if d.IsClosed() {
+		select {
+		case <-ctx.Done():
 			return closedErr
+		default:
 		}
 		d.mu.Lock()
-		if conversation, ongoingConversation := d.conversations[chatID]; !ongoingConversation || conversation.IsClosed() {
-			if d.IsClosed() {
-				d.mu.Unlock()
-				return closedErr
-			}
+		if _, ongoingConversation := d.conversations[chatID]; !ongoingConversation {
 			_, err := d.bot.Send(msg)
 			d.mu.Unlock()
 			return err
 		}
 		d.mu.Unlock()
-		select {
-		case <-ctx.Done():
-			return errors.New("Cannot send a message, context closed")
-		case <-time.After(time.Duration(time.Duration(d.singleMessageTrySendInterval) * time.Second)):
-		}
+		time.Sleep(time.Duration(time.Duration(d.singleMessageTrySendInterval) * time.Second))
 	}
 }
 
 // DispatchUpdate routes an update to the target conversation, or creates a new conversation
-func (d *Dispatcher) DispatchUpdate(update *tgbotapi.Update) error {
-	if d.IsClosed() {
-		return errors.New("Dispatcher is closed")
-	}
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	chatID, err := conversation.GetUpdateChatID(update)
-	if err != nil {
-		return err
-	}
-	if d.isCancelCommand(update) {
-		if conv, ok := d.conversations[chatID]; ok {
-			err = conv.CancelByUser()
-			delete(d.conversations, chatID)
-		}
-		return err
-	}
-	if conv, ok := d.conversations[chatID]; ok {
-		return conv.PushUpdate(update)
-	} else if len(d.conversations) < d.maxOpenConversations {
-		conv, err := conversation.NewConversation(chatID, d.bot, d.state, &d.wg, d.conversationConfig)
-		if err != nil {
-			return err
-		}
-		d.conversations[chatID] = conv
-		if conv, ok := d.conversations[chatID]; ok {
-			return conv.PushUpdate(update)
-		}
-		return errors.New("cannot create new conversation")
-	} else {
-		msg := tgbotapi.NewMessage(chatID, d.toManyOpenConversationsMessage)
-		_, err := d.bot.Send(msg)
-		return fmt.Errorf("to many open conversations (%v)", err)
-	}
+func (d *Dispatcher) DispatchUpdate(update *tgbotapi.Update) {
+	d.incomeCh <- update
 }

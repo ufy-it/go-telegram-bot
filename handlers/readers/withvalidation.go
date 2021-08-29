@@ -1,6 +1,7 @@
 package readers
 
 import (
+	"context"
 	"regexp"
 	"time"
 
@@ -18,7 +19,8 @@ type InputTextValidation func(text string) bool // predicat that accepts only va
 type BotUpdateValidator func(update *tgbotapi.Update) (bool, string)
 
 // AskGenericMessageReplyWithValidation continuously asks a user for reply until reply passes validation functor
-func AskGenericMessageReplyWithValidation(conversation BotConversation,
+func AskGenericMessageReplyWithValidation(ctx context.Context,
+	conversation BotConversation,
 	message tgbotapi.Chattable,
 	bs buttons.ButtonSet,
 	validator BotUpdateValidator,
@@ -54,7 +56,7 @@ func AskGenericMessageReplyWithValidation(conversation BotConversation,
 			return nil, false, err
 		}
 
-		reply, exit := conversation.GetUpdateFromUser() // get reply from user
+		reply, exit := conversation.GetUpdateFromUser(ctx) // get reply from user
 		if exit {
 			return nil, true, nil
 		}
@@ -92,7 +94,8 @@ func AskGenericMessageReplyWithValidation(conversation BotConversation,
 
 // AskTextMessageReplyWithValidation is a complex conversation that keep asking a question to user
 // until they give information that pass the validation or press a button
-func AskTextMessageReplyWithValidation(conversation BotConversation,
+func AskTextMessageReplyWithValidation(ctx context.Context,
+	conversation BotConversation,
 	message string, bs buttons.ButtonSet,
 	validator InputTextValidation, messageOnIncorrect string) (UserTextAndDataReply, error) {
 	outerValidator := func(update *tgbotapi.Update) (bool, string) {
@@ -101,25 +104,25 @@ func AskTextMessageReplyWithValidation(conversation BotConversation,
 		}
 		return false, messageOnIncorrect
 	}
-	reply, exit, err := AskGenericMessageReplyWithValidation(conversation, conversation.NewMessage(message), bs, outerValidator, true)
+	reply, exit, err := AskGenericMessageReplyWithValidation(ctx, conversation, conversation.NewMessage(message), bs, outerValidator, true)
 	return ParseUserTextAndDataReply(reply, exit), err
 }
 
 //AskOnlyButtonReply sends message to a user and accepts only buttons
-func AskOnlyButtonReply(conversation BotConversation, message tgbotapi.Chattable, bs buttons.ButtonSet, messageOnText string) (UserTextAndDataReply, error) {
+func AskOnlyButtonReply(ctx context.Context, conversation BotConversation, message tgbotapi.Chattable, bs buttons.ButtonSet, messageOnText string) (UserTextAndDataReply, error) {
 	validator := func(update *tgbotapi.Update) (bool, string) {
 		return false, messageOnText
 	}
-	return ParseUserTextDataAndErrorReply(AskGenericMessageReplyWithValidation(conversation, message, bs, validator, true))
+	return ParseUserTextDataAndErrorReply(AskGenericMessageReplyWithValidation(ctx, conversation, message, bs, validator, true))
 }
 
 // AskReplyDate asks a user to enter date in format dd.mm.yyyy
-func AskReplyDate(conversation BotConversation, message string, bs buttons.ButtonSet, messageOnIncorrectInput string, location *time.Location) (UserTimeAndDataReply, error) {
+func AskReplyDate(ctx context.Context, conversation BotConversation, message string, bs buttons.ButtonSet, messageOnIncorrectInput string, location *time.Location) (UserTimeAndDataReply, error) {
 	validator := func(text string) bool {
 		_, err := time.ParseInLocation("02.01.2006", text, location)
 		return err == nil
 	}
-	preResult, err := AskTextMessageReplyWithValidation(conversation, message, bs, validator, messageOnIncorrectInput)
+	preResult, err := AskTextMessageReplyWithValidation(ctx, conversation, message, bs, validator, messageOnIncorrectInput)
 	result := UserTimeAndDataReply{
 		MessageID: preResult.MessageID,
 		Data:      preResult.Data,
@@ -135,7 +138,7 @@ func AskReplyDate(conversation BotConversation, message string, bs buttons.Butto
 }
 
 // AskReplyEmail asks user to enter a vaid email address
-func AskReplyEmail(conversation BotConversation, message string, bs buttons.ButtonSet, messageOnIncorrectInput string) (UserTextAndDataReply, error) {
+func AskReplyEmail(ctx context.Context, conversation BotConversation, message string, bs buttons.ButtonSet, messageOnIncorrectInput string) (UserTextAndDataReply, error) {
 	validator := func(text string) bool {
 		if len(text) < 3 || len(text) > 254 {
 			return false
@@ -143,5 +146,5 @@ func AskReplyEmail(conversation BotConversation, message string, bs buttons.Butt
 		// regexp by W3C
 		return regexp.MustCompile("^[a-zA-Z0-9.!#$%&'*+\\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$").MatchString(text)
 	}
-	return AskTextMessageReplyWithValidation(conversation, message, bs, validator, messageOnIncorrectInput)
+	return AskTextMessageReplyWithValidation(ctx, conversation, message, bs, validator, messageOnIncorrectInput)
 }

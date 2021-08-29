@@ -29,7 +29,6 @@ type Config struct {
 	UpdateTimeout          int
 	StateFile              string // path to the state file
 	AllowBotUsers          bool   // flag that indicates whether conversation with bot users allowed
-	JobsStopTimeoutSeconds int    // timeout for stopping all jobs
 	WebHookExternalURL     string // "https://www.google.com:8443/"+bot.Token
 	WebHookInternalURL     string // "0.0.0.0:8443"
 	CertFile               string // "cert.pem"
@@ -45,7 +44,6 @@ type Config struct {
 * `AllowBotUsers` - boolean flag that allows bot to answer other bots, otherwise it will ignore
 * `WebHookExternalURL`, `WebHookInternalURL`, `CertFile`, `KeyFile` - configuration parameters for the web hook mode
 * `Jobs` - list of jobs to run
-* `JobsStopTimeoutSeconds` - timeout to stop all jobs. The bot's job manager will wait no more than the timeout for all jobs to stop, if some job does not stop in time, it will return an error
 * `Dispatcher` - configuration for the message dispacher object. Is described in details below
 
 Conversation dispatcher should be configured with the following parameters:
@@ -54,7 +52,6 @@ Conversation dispatcher should be configured with the following parameters:
 // Config contains configuration parameters for a new dispatcher
 type Config struct {
 	MaxOpenConversations           int                 // the maximum number of open conversations
-	CloseTimeoutSeconds            int                 // timeout in seconds for closing the dispatcher
 	ClearJobInterval               int                 // interval in seconds between Cleaning Job runs
 	SingleMessageTrySendInterval   int                 // interval between several tries of send single message to a user
 	ConversationConfig             conversation.Config // configuration for a conversation
@@ -64,7 +61,6 @@ type Config struct {
 ```
 
 * `MaxOpenConversations` - the maximum number of open conversations, the dispatcher will refuse messages from new users if it is already running `MaxOpenConversations` conversations
-* `CloseTimeoutSeconds` - after calling `Close()` method the dispatcher will wait no more than `CloseTimeoutSeconds`seconds. If some conversations will not be closed in time the method will return an error
 * `ClearJobInterval` - interval in seconds between runs of the collector job that cleans closed conversations from the dispatcher's cache. Reasonable time depends on the load and resources. Recomended value is 10
 * `SingleMessageTrySendInterval` - interval between tries of sending single message to a user with `SendSingleMessage` method
 * `CancelCommand` - command that allows user to cancel any ongoing conversation (i.e. `/cancel`)
@@ -190,7 +186,9 @@ var AllHandlerCreators = h.CommandHandlers{
 
 #### 3. Run the bot from your code
 ```
-err = bot.RunBot(bot.Config{
+err = bot.RunBot(
+	context.Background(),
+	bot.Config{
 		APIToken: BotAPIToken, // some API token
 		Debug:    false,
 		WebHook:  false,
@@ -199,7 +197,6 @@ err = bot.RunBot(bot.Config{
 			ClearJobInterval:               10,
 			SingleMessageTrySendInterval:   10,
 			CancelCommand:                  "/cancel",
-			CloseTimeoutSeconds:            10,
 			ToManyOpenConversationsMessage: "Bot is ovverloaded. Try to send your request later",
 			ConversationConfig: conversation.Config{
 				MaxMessageQueue:       100,

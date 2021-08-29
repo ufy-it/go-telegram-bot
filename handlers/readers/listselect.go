@@ -1,6 +1,7 @@
 package readers
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -32,6 +33,7 @@ const (
 
 // SelectItemFromList asks user to select an item from the list
 func SelectItemFromList(
+	ctx context.Context,
 	conversation BotConversation,
 	text string,
 	items []ListItem,
@@ -104,7 +106,7 @@ func SelectItemFromList(
 		}
 
 		filterChanged = false
-		result := ReadRawTextAndDataResult(conversation)
+		result := ReadRawTextAndDataResult(ctx, conversation)
 		if result.Exit {
 			return result, nil
 		}
@@ -153,6 +155,7 @@ func SelectItemFromList(
 
 // MultySelectItemFromList asks a user to select several items from the list
 func MultySelectItemFromList(
+	ctx context.Context,
 	conversation BotConversation,
 	text string,
 	items []ListItem,
@@ -253,7 +256,7 @@ func MultySelectItemFromList(
 
 		filterChanged = false
 		selectedChanged = false
-		result := ReadRawTextAndDataResult(conversation)
+		result := ReadRawTextAndDataResult(ctx, conversation)
 		if result.Exit {
 			return UserSelectedListReply{Exit: true}, nil
 		}

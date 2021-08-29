@@ -17,19 +17,18 @@ import (
 
 // Config describes configuration oprions for the bot
 type Config struct {
-	APIToken               string                   // Bot API token
-	Debug                  bool                     // flag to indicate whether run the bot in debug
-	WebHook                bool                     // flag to indicate whether to run webhook or long pulling
-	Dispatcher             dispatcher.Config        // configuration for the dispatcher
-	Jobs                   jobs.JobDescriptionsList // list of jobs to run
-	UpdateTimeout          int
-	StateFile              string // path to the state file
-	AllowBotUsers          bool   // flag that indicates whether conversation with bot users allowed
-	JobsStopTimeoutSeconds int    // timeout for stopping all jobs
-	WebHookExternalURL     string // "https://www.google.com:8443/"+bot.Token
-	WebHookInternalURL     string // "0.0.0.0:8443"
-	CertFile               string // "cert.pem"
-	KeyFile                string // "key.pem"
+	APIToken           string                   // Bot API token
+	Debug              bool                     // flag to indicate whether run the bot in debug
+	WebHook            bool                     // flag to indicate whether to run webhook or long pulling
+	Dispatcher         dispatcher.Config        // configuration for the dispatcher
+	Jobs               jobs.JobDescriptionsList // list of jobs to run
+	UpdateTimeout      int
+	StateFile          string // path to the state file
+	AllowBotUsers      bool   // flag that indicates whether conversation with bot users allowed
+	WebHookExternalURL string // "https://www.google.com:8443/"+bot.Token
+	WebHookInternalURL string // "0.0.0.0:8443"
+	CertFile           string // "cert.pem"
+	KeyFile            string // "key.pem"
 }
 
 // RunBot handles conversation with bot users and runs jobs in an infinite loop
@@ -63,7 +62,7 @@ func RunBot(ctx context.Context, config Config) error {
 	}
 	ctxWithCancel, cancelContext := context.WithCancel(ctx)
 	defer cancelContext()
-	disp := dispatcher.NewDispatcher(config.Dispatcher, bot, config.StateFile)
+	disp := dispatcher.NewDispatcher(ctxWithCancel, config.Dispatcher, bot, config.StateFile)
 	jobs.RunJobs(ctxWithCancel, config.Jobs, disp)
 	c := make(chan os.Signal) // Gracefully terminate the program
 	signal.Notify(c, os.Interrupt, os.Kill, syscall.SIGTERM)
@@ -74,25 +73,12 @@ func RunBot(ctx context.Context, config Config) error {
 			if update.Message != nil && update.Message.From.IsBot && !config.AllowBotUsers {
 				continue // skip message from another bot
 			}
-			err := disp.DispatchUpdate(&update)
-			if err != nil {
-				logger.Error("error dispatching message from %s: %v", update.Message.From.UserName, err)
-			}
+			disp.DispatchUpdate(&update)
 		case sig := <-c:
 			logger.Note("Recieved interrupt signal %v", sig)
 			cancelContext()
-			err = disp.Close()
-			if err != nil {
-				return fmt.Errorf("error during closing dispather: %v", err)
-			}
-			logger.Note("Dispatcher closed")
 			return nil
 		case <-ctx.Done():
-			err = disp.Close()
-			if err != nil {
-				return fmt.Errorf("error during closing dispather: %v", err)
-			}
-			logger.Note("Dispatcher closed")
 			return nil
 		}
 	}
