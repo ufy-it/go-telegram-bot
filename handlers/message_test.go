@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ufy-it/go-telegram-bot/handlers"
@@ -18,7 +19,7 @@ func TestMessageCreator(t *testing.T) {
 	}
 
 	conversation := mockConversation{}
-	handlerStruct := handler(&conversation, nil)
+	handlerStruct := handler(context.Background(), &conversation, nil)
 
 	err := handlerStruct.Execute(state.NewBotState())
 
@@ -40,7 +41,7 @@ func TestReplyMessageCreator(t *testing.T) {
 	}
 
 	conversation := mockConversation{}
-	handlerStruct := handler(&conversation, &tgbotapi.Message{MessageID: 133})
+	handlerStruct := handler(context.Background(), &conversation, &tgbotapi.Message{MessageID: 133})
 
 	err := handlerStruct.Execute(state.NewBotState())
 

@@ -62,7 +62,10 @@ func RunBot(ctx context.Context, config Config) error {
 	}
 	ctxWithCancel, cancelContext := context.WithCancel(ctx)
 	defer cancelContext()
-	disp := dispatcher.NewDispatcher(ctxWithCancel, config.Dispatcher, bot, config.StateFile)
+	disp, err := dispatcher.NewDispatcher(ctxWithCancel, config.Dispatcher, bot, config.StateFile)
+	if err != nil {
+		return err
+	}
 	jobs.RunJobs(ctxWithCancel, config.Jobs, disp)
 	c := make(chan os.Signal) // Gracefully terminate the program
 	signal.Notify(c, os.Interrupt, os.Kill, syscall.SIGTERM)

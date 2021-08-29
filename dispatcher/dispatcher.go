@@ -83,17 +83,17 @@ func (d *Dispatcher) handleConversation(ctx context.Context, conv *conversation.
 		message := update.Message
 		var handler handlers.Handler = nil
 		if update.Message.Photo != nil && len(*update.Message.Photo) > 0 && d.commandHandlers.Image != nil {
-			handler = d.commandHandlers.Image(conv, message) // use image handler
+			handler = d.commandHandlers.Image(ctx, conv, message) // use image handler
 		} else {
 			for _, creator := range d.commandHandlers.List { // find corresponding handler for the first message
 				if creator.CommandRe.MatchString(message.Text) || creator.CommandRe.MatchString(message.Command()) {
-					handler = creator.HandlerCreator(conv, message)
+					handler = creator.HandlerCreator(ctx, conv, message)
 					break
 				}
 			}
 		}
 		if handler == nil {
-			handler = d.commandHandlers.Default(conv, message) // use default handler if there is no suitable
+			handler = d.commandHandlers.Default(ctx, conv, message) // use default handler if there is no suitable
 		}
 		err := handler.Execute(d.state) // execute handler
 		if err != nil {
@@ -168,7 +168,7 @@ func (d *Dispatcher) dispatchLoop(ctx context.Context) {
 }
 
 // NewDispatcher creates a new Dispatcher objects and starts a separate thread to clear old conversations
-func NewDispatcher(ctx context.Context, config Config, bot *tgbotapi.BotAPI, stateFile string) *Dispatcher {
+func NewDispatcher(ctx context.Context, config Config, bot *tgbotapi.BotAPI, stateFile string) (*Dispatcher, error) {
 	d := &Dispatcher{
 		conversations:                  make(map[int64]conversatonWithCancel),
 		conversationConfig:             config.ConversationConfig,
@@ -180,6 +180,10 @@ func NewDispatcher(ctx context.Context, config Config, bot *tgbotapi.BotAPI, sta
 		toManyOpenConversationsMessage: config.ToManyOpenConversationsMessage,
 		state:                          state.NewBotState(),
 		incomeCh:                       make(chan *tgbotapi.Update),
+		commandHandlers:                config.Handlers,
+	}
+	if d.commandHandlers == nil {
+		return nil, errors.New("handlers cannot be nil")
 	}
 	if stateFile != "" { //load previouse state from file
 		err := d.state.LoadState(stateFile)
@@ -203,7 +207,7 @@ func NewDispatcher(ctx context.Context, config Config, bot *tgbotapi.BotAPI, sta
 		}
 	}
 	go d.dispatchLoop(ctx) // start the dispaching loop
-	return d
+	return d, nil
 }
 
 // isCancelCommand returns true if a user entered cancel command

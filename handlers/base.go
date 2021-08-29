@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"regexp"
@@ -18,7 +19,7 @@ type Handler interface {
 }
 
 // HandlerCreatorType is a type of a functor that can create a handler for a conversation
-type HandlerCreatorType func(conversation readers.BotConversation, firstMessage *tgbotapi.Message) Handler
+type HandlerCreatorType func(ctx context.Context, conversation readers.BotConversation, firstMessage *tgbotapi.Message) Handler
 
 // CommandHandler is a struct that contains regexp to determine start command for the handler and function-creator to build the handler
 type CommandHandler struct {
