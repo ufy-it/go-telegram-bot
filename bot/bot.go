@@ -4,9 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/ufy-it/go-telegram-bot/dispatcher"
 	"github.com/ufy-it/go-telegram-bot/jobs"
@@ -60,16 +57,11 @@ func RunBot(ctx context.Context, config Config) error {
 		ucfg.Timeout = config.UpdateTimeout
 		upd, _ = bot.GetUpdatesChan(ucfg)
 	}
-	ctxWithCancel, cancelContext := context.WithCancel(ctx)
-	defer cancelContext()
-	disp, err := dispatcher.NewDispatcher(ctxWithCancel, config.Dispatcher, bot, config.StateFile)
+	disp, err := dispatcher.NewDispatcher(ctx, config.Dispatcher, bot, config.StateFile)
 	if err != nil {
 		return err
 	}
-	jobs.RunJobs(ctxWithCancel, config.Jobs, disp)
-	c := make(chan os.Signal) // Gracefully terminate the program
-	signal.Notify(c, os.Interrupt, os.Kill, syscall.SIGTERM)
-
+	jobs.RunJobs(ctx, config.Jobs, disp)
 	for {
 		select {
 		case update := <-upd:
@@ -77,11 +69,8 @@ func RunBot(ctx context.Context, config Config) error {
 				continue // skip message from another bot
 			}
 			disp.DispatchUpdate(&update)
-		case sig := <-c:
-			logger.Note("Recieved interrupt signal %v", sig)
-			cancelContext()
-			return nil
 		case <-ctx.Done():
+			logger.Note("context is closed, exiting")
 			return nil
 		}
 	}
