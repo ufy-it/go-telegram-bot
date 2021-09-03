@@ -100,7 +100,7 @@ To add a new high-level handler you need two things:
 #### 1. Write creator for a new handler 
 *Example:*
 ```
-var MyCustomCreator1 = func(conversation readers.BotConversation, firstMessage *tgbotapi.Message) convrsationHandler {
+var MyCustomCreator1 = func(ctx context.Context, conversation readers.BotConversation, firstMessage *tgbotapi.Message) convrsationHandler {
     // ...
     // get needed data from firstMessage
     // define and set common variables for steps
@@ -132,7 +132,7 @@ var MyCustomCreator1 = func(conversation readers.BotConversation, firstMessage *
                 name: "final",
 				action: func(conversation readers.BotConversation) (handlers.StepResult, error) {
 					// there already some usefull readers in `readers` package, you can create your own
-					reply, err := readers.AskReplyEmail(conversation, "Enter your email", buttons.NewAbortButton("Abort"), "Please enter a valid email")
+					reply, err := readers.AskReplyEmail(ctx, conversation, "Enter your email", buttons.NewAbortButton("Abort"), "Please enter a valid email")
 					// bot received new update from the user and needs to handle it properly 
 					if err != nil { // if something went wrong
 						return handlers.ActionResultError(err)	
@@ -158,13 +158,13 @@ If you do not want to manage multy-step conversations, you can simplify your cod
 
 ```
 var MyCustomCreator2 = handlers.OneStepHandlerCreator(
-	func(conversation readers.BotConversation, firstMessage *tgbotapi.Message) error {
+	func(ctx context.Context, conversation readers.BotConversation, firstMessage *tgbotapi.Message) error {
 	_, err = conversation.SendText("Wellcome to the bot!")
 	return err
 })
 
 var DefaultHandlerCreator = handlers.OneStepHandlerCreator(
-	func(conversation readers.BotConversation, firstMessage *tgbotapi.Message) error {
+	func(ctx context.Context, conversation readers.BotConversation, firstMessage *tgbotapi.Message) error {
 	_, err = conversation.SendText("The command is not implemented yet")
 	return err
 })
@@ -211,4 +211,4 @@ err = bot.RunBot(
 ```
 
 ### TO DO
-* Introduce `context` for jobs and conversations 
+* Add multy-language support in technical messages
