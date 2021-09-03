@@ -22,7 +22,7 @@ type SendBot interface {
 // Config is struct with configuration parameters for a conversation
 type Config struct {
 	MaxMessageQueue int // the maximum size of message queue for a conversation
-	TimeoutMinutes  int // Lifetime of an open conversation in minutes
+	TimeoutMinutes  int // timeout for a user's input
 
 	CloseByBotMessage     string // message to send to a user if the conversation is closed from the bot side
 	CloseByUserMessage    string // message to send to a user if they decided to close the conversation
