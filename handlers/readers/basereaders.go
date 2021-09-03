@@ -1,6 +1,7 @@
 package readers
 
 import (
+	"context"
 	"time"
 
 	tgbotapi "github.com/Syfaro/telegram-bot-api"
@@ -8,11 +9,9 @@ import (
 
 // BotConversation implements interface for reading and writing messages from the bot side
 type BotConversation interface {
-	IsClosed() bool      // returns "true" if the conversation is closed
-	FinishConversation() // tell the conversation object that current dialog is finished
-	ChatID() int64       // get current chatID
+	ChatID() int64 // get current chatID
 
-	GetUpdateFromUser() (*tgbotapi.Update, bool) // read update from a user (will hang until a user sends new mupdate, or conversation is closed)
+	GetUpdateFromUser(ctx context.Context) (*tgbotapi.Update, bool) // read update from a user (will hang until a user sends new mupdate, or conversation is closed)
 
 	NewPhotoShare(photoFileID string, caption string) tgbotapi.PhotoConfig // create a message with a Photo (should be uploaded to the telegram an caption)
 	NewMessage(text string) tgbotapi.MessageConfig                         // Create a new Text message with HTML parsing
@@ -72,7 +71,7 @@ func ParseUserTextDataAndErrorReply(update *tgbotapi.Update, exit bool, err erro
 }
 
 // ReadRawTextAndDataResult waits for an update fro a user, and parses the update to UserTextAndDataReply struct
-func ReadRawTextAndDataResult(conversation BotConversation) UserTextAndDataReply {
-	update, exit := conversation.GetUpdateFromUser()
+func ReadRawTextAndDataResult(ctx context.Context, conversation BotConversation) UserTextAndDataReply {
+	update, exit := conversation.GetUpdateFromUser(ctx)
 	return ParseUserTextAndDataReply(update, exit)
 }

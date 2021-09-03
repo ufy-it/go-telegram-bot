@@ -1,6 +1,7 @@
 package readers
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -37,7 +38,7 @@ const (
 )
 
 // AskReplyCalendarDate asks a user to select date between minDate and maxDate in calendar widget
-func AskReplyCalendarDate(conversation BotConversation,
+func AskReplyCalendarDate(ctx context.Context, conversation BotConversation,
 	text string,
 	minDate time.Time,
 	maxDate time.Time,
@@ -210,7 +211,7 @@ func AskReplyCalendarDate(conversation BotConversation,
 			}
 		}
 		changed = false
-		reply := ReadRawTextAndDataResult(conversation)
+		reply := ReadRawTextAndDataResult(ctx, conversation)
 		if reply.Exit {
 			return UserTimeAndDataReply{Exit: true}, nil
 		}

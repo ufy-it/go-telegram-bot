@@ -1,6 +1,8 @@
 package readers
 
 import (
+	"context"
+
 	"github.com/ufy-it/go-telegram-bot/handlers/buttons"
 
 	tgbotapi "github.com/Syfaro/telegram-bot-api"
@@ -14,7 +16,7 @@ type UserImageAndDataReply struct {
 }
 
 // GetImage asks a user to send image
-func GetImage(conversation BotConversation, text string, navigation buttons.ButtonSet, textOnIncorrect string) (UserImageAndDataReply, error) {
+func GetImage(ctx context.Context, conversation BotConversation, text string, navigation buttons.ButtonSet, textOnIncorrect string) (UserImageAndDataReply, error) {
 	msg := conversation.NewMessage(text)
 	validator := func(update *tgbotapi.Update) (bool, string) {
 		if update != nil && update.Message != nil && update.Message.Photo != nil && len(*update.Message.Photo) > 0 {
@@ -22,7 +24,7 @@ func GetImage(conversation BotConversation, text string, navigation buttons.Butt
 		}
 		return false, textOnIncorrect
 	}
-	reply, exit, err := AskGenericMessageReplyWithValidation(conversation, msg, navigation, validator, true)
+	reply, exit, err := AskGenericMessageReplyWithValidation(ctx, conversation, msg, navigation, validator, true)
 	result := UserImageAndDataReply{Exit: exit}
 	if reply != nil && reply.CallbackQuery != nil {
 		result.Data = reply.CallbackQuery.Data

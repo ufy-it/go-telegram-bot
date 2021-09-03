@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"regexp"
@@ -12,95 +13,13 @@ import (
 	tgbotapi "github.com/Syfaro/telegram-bot-api"
 )
 
-// HandleConversation handles user messages until the conversation is closed
-func HandleConversation(conversation readers.BotConversation, bState state.BotState, config *CommandHandlers) {
-	var exit bool = false
-	if config == nil {
-		logger.Error("config object is nil")
-		return
-	}
-	if config.Default == nil {
-		logger.Error("default handler is nil")
-		return
-	}
-	if config.List == nil {
-		logger.Error("list of handlers is nil")
-		return
-	}
-	if conversation == nil {
-		logger.Error("conversation object is nil")
-		return
-	}
-	if bState == nil {
-		logger.Error("state object is nil")
-		return
-	}
-	for {
-		if conversation.IsClosed() {
-			return
-		}
-		update := bState.GetConversatonFirstUpdate(conversation.ChatID())
-		if update == nil { // regular handling of incomming messages
-			update, exit = conversation.GetUpdateFromUser()
-			if !exit {
-				err := bState.StartConversationWithUpdate(conversation.ChatID(), update)
-				if err != nil {
-					logger.Error("cannot add conversation to state: %v", err)
-				}
-			}
-		}
-		if exit {
-			err := bState.RemoveConverastionState(conversation.ChatID())
-			if err != nil {
-				logger.Error("cannot remove conversation state: %v", err)
-			}
-			return //finish the conversation
-		}
-		if update.Message == nil {
-			logger.Warning("cannot process non-message high-level command in conversation with %d", conversation.ChatID())
-			bState.RemoveConverastionState(conversation.ChatID())
-			continue
-		}
-		message := update.Message
-		var handler Handler = nil
-		if update.Message.Photo != nil && len(*update.Message.Photo) > 0 && config.Image != nil {
-			handler = config.Image(conversation, message) // use image handler
-		} else {
-			for _, creator := range config.List { // find corresponding handler for the first message
-				if creator.CommandRe.MatchString(message.Text) || creator.CommandRe.MatchString(message.Command()) {
-					handler = creator.HandlerCreator(conversation, message)
-					break
-				}
-			}
-		}
-		if handler == nil {
-			handler = config.Default(conversation, message) // use default handler if there is no suitable
-		}
-		err := handler.Execute(bState) // execute handler
-		if err != nil {
-			logger.Error("in conversation with %d got error: %v", conversation.ChatID(), err)
-			if !conversation.IsClosed() {
-				_, err = conversation.SendText(config.UserErrorMessage)
-				if err != nil {
-					logger.Warning("cannot send error notification to %d", conversation.ChatID())
-				}
-			}
-		}
-		err = bState.RemoveConverastionState(conversation.ChatID()) // clear state for the conversation
-		if err != nil {
-			logger.Error("cannot remove conversation state: %v", err)
-		}
-		conversation.FinishConversation() // suggest to finish the conversation
-	}
-}
-
 // Handler is an interface for a conversation handler
 type Handler interface {
 	Execute(bState state.BotState) error
 }
 
 // HandlerCreatorType is a type of a functor that can create a handler for a conversation
-type HandlerCreatorType func(conversation readers.BotConversation, firstMessage *tgbotapi.Message) Handler
+type HandlerCreatorType func(ctx context.Context, conversation readers.BotConversation, firstMessage *tgbotapi.Message) Handler
 
 // CommandHandler is a struct that contains regexp to determine start command for the handler and function-creator to build the handler
 type CommandHandler struct {

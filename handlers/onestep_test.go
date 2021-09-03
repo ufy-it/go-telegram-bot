@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -17,19 +18,11 @@ type mockConversation struct {
 	replyMessageID int
 }
 
-func (mc *mockConversation) IsClosed() bool {
-	return false
-}
-
-func (mc *mockConversation) FinishConversation() {
-
-}
-
 func (mc *mockConversation) ChatID() int64 {
 	return 0
 }
 
-func (mc *mockConversation) GetUpdateFromUser() (*tgbotapi.Update, bool) {
+func (mc *mockConversation) GetUpdateFromUser(ctx context.Context) (*tgbotapi.Update, bool) {
 	return nil, false
 }
 
@@ -81,7 +74,7 @@ func (mc *mockConversation) EditMessageTextAndInlineMarkup(messageID int, text s
 }
 
 func TestOneStepCreator(t *testing.T) {
-	var step handlers.OneStepCommandHandlerType = func(conversation readers.BotConversation, firstMessage *tgbotapi.Message) error {
+	var step handlers.OneStepCommandHandlerType = func(ctx context.Context, conversation readers.BotConversation, firstMessage *tgbotapi.Message) error {
 		return errors.New("Some error")
 	}
 	handler := handlers.OneStepHandlerCreator(step)
@@ -90,7 +83,7 @@ func TestOneStepCreator(t *testing.T) {
 		t.Errorf("OneStepHandlerCreator returned nil")
 	}
 
-	handlerStruct := handler(&mockConversation{}, nil)
+	handlerStruct := handler(context.Background(), &mockConversation{}, nil)
 
 	err := handlerStruct.Execute(state.NewBotState())
 
