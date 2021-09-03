@@ -152,7 +152,7 @@ func (h *StandardHandler) Execute(bState state.BotState) error {
 				}
 			}
 			if nextStep < 0 {
-				return fmt.Errorf("Cannot find step with name '%s'", result.Name)
+				return fmt.Errorf("cannot find step with name '%s'", result.Name)
 			}
 			step = nextStep
 		}
