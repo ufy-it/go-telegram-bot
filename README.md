@@ -110,7 +110,7 @@ var MyCustomCreator1 = func(ctx context.Context, conversation readers.BotConvers
 		// ...
 	}
     return &baseHandler{ 
-		conversation: conversation,
+		ChatID: conversation.ChatID(),
 		SetUserData: func(data interface{}) error { // SetUserData and GetUserData allows to save and restore conversation state in case of shutdown
 			bytes, err := json.Marshal(data)
 			if err != nil {
@@ -122,15 +122,15 @@ var MyCustomCreator1 = func(ctx context.Context, conversation readers.BotConvers
 		steps: []conversationStep{
             // ... multiple steps
 			{
-				action: func(conversation readers.BotConversation) (handlers.StepResult, error) {
+				Action: func() (handlers.StepResult, error) {
 					err := conversation.SendText("Welcome to the sample bot!") // send message to user
-					return handlers.ActionResultWithError(handlers.NextStep(), err) // go to the next step 
+					return handlers.ActionResultWithError(handlers.NextStep, err) // go to the next step 
 				},
 			},
 			// ...
 			{
-                name: "final",
-				action: func(conversation readers.BotConversation) (handlers.StepResult, error) {
+                Name: "final",
+				Action: func() (handlers.StepResult, error) {
 					// there already some usefull readers in `readers` package, you can create your own
 					reply, err := readers.AskReplyEmail(ctx, conversation, "Enter your email", buttons.NewAbortButton("Abort"), "Please enter a valid email")
 					// bot received new update from the user and needs to handle it properly 
@@ -142,10 +142,10 @@ var MyCustomCreator1 = func(ctx context.Context, conversation readers.BotConvers
 					}
 					if reply.Data == buttons.NavigationAbort { // Abort button pressed
 						_, err = conversation.SendText("See you next time")
-						return handlers.ActionResultWithError(handlers.EndConversation(), err)
+						return handlers.ActionResultWithError(handlers.EndConversation, err)
 					}
 					_, err = conversation.SendText(fmt.Sprintf("Your email is %s", reply.Text))
-					return handlers.ActionResultWithError(handlers.EndConversation(), err) // end the conversation
+					return handlers.ActionResultWithError(handlers.EndConversation, err) // end the conversation
 				},
 			},
 		},
