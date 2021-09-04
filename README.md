@@ -129,7 +129,7 @@ var MyCustomCreator1 = func(ctx context.Context, conversation readers.BotConvers
 			},
 			// ...
 			{
-                Name: "final",
+				Name: "final",
 				Action: func() (handlers.StepResult, error) {
 					// there already some usefull readers in `readers` package, you can create your own
 					reply, err := readers.AskReplyEmail(ctx, conversation, "Enter your email", buttons.NewAbortButton("Abort"), "Please enter a valid email")
