@@ -74,7 +74,7 @@ func (mc *mockConversation) EditMessageTextAndInlineMarkup(messageID int, text s
 }
 
 func TestOneStepCreator(t *testing.T) {
-	var step handlers.OneStepCommandHandlerType = func(ctx context.Context, conversation readers.BotConversation, firstMessage *tgbotapi.Message) error {
+	var step handlers.OneStepCommandHandlerType = func(ctx context.Context, conversation readers.BotConversation) error {
 		return errors.New("Some error")
 	}
 	handler := handlers.OneStepHandlerCreator(step)
@@ -83,7 +83,7 @@ func TestOneStepCreator(t *testing.T) {
 		t.Errorf("OneStepHandlerCreator returned nil")
 	}
 
-	handlerStruct := handler(context.Background(), &mockConversation{}, nil)
+	handlerStruct := handler(context.Background(), &mockConversation{})
 
 	err := handlerStruct.Execute(state.NewBotState())
 

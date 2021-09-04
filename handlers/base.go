@@ -9,8 +9,12 @@ import (
 	"github.com/ufy-it/go-telegram-bot/handlers/readers"
 	"github.com/ufy-it/go-telegram-bot/logger"
 	"github.com/ufy-it/go-telegram-bot/state"
+)
 
-	tgbotapi "github.com/Syfaro/telegram-bot-api"
+type HandlerContextVariables string
+
+const (
+	FirstMessageVariable HandlerContextVariables = "first_message"
 )
 
 // Handler is an interface for a conversation handler
@@ -19,7 +23,7 @@ type Handler interface {
 }
 
 // HandlerCreatorType is a type of a functor that can create a handler for a conversation
-type HandlerCreatorType func(ctx context.Context, conversation readers.BotConversation, firstMessage *tgbotapi.Message) Handler
+type HandlerCreatorType func(ctx context.Context, conversation readers.BotConversation) Handler
 
 // CommandHandler is a struct that contains regexp to determine start command for the handler and function-creator to build the handler
 type CommandHandler struct {
@@ -74,7 +78,6 @@ type UserDataWriter func(data interface{}) error
 // StandardHandler is a struct that represents a conversation handler
 type StandardHandler struct {
 	Conversation readers.BotConversation // pointer to the object that handles conversation between bot and user
-	FirstMessage *tgbotapi.Message       // first message, that started conversation with a particular handler
 	Steps        []ConversationStep      // conversation steps
 	GetUserData  UserDataReader          // function to get user data for serialization
 	SetUserData  UserDataWriter          // function to set user-data in case of resumed conversation

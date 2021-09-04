@@ -5,13 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/ufy-it/go-telegram-bot/conversation"
-	"github.com/ufy-it/go-telegram-bot/handlers"
-	"github.com/ufy-it/go-telegram-bot/handlers/readers"
 	"github.com/ufy-it/go-telegram-bot/state"
 
 	tgbotapi "github.com/Syfaro/telegram-bot-api"
@@ -122,34 +119,6 @@ func (d *dummyBot) AnswerCallbackQuery(config tgbotapi.CallbackConfig) (tgbotapi
 	return tgbotapi.APIResponse{}, nil
 }
 
-func newDummyHandlers() *handlers.CommandHandlers {
-	return &handlers.CommandHandlers{
-		Default: handlers.OneStepHandlerCreator(func(ctx context.Context, conversation readers.BotConversation, firstMessage *tgbotapi.Message) error {
-			<-time.After(1 * time.Millisecond)
-			return nil
-		}),
-		List: make([]handlers.CommandHandler, 0),
-	}
-}
-
-func wgWaitTimeout(timeout time.Duration, wg *sync.WaitGroup) bool {
-	c := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(c)
-	}()
-	select {
-	case <-time.After(timeout):
-		return false
-	case <-c:
-		return true
-	}
-}
-
-func wait(timeout time.Duration) {
-	<-time.After(timeout)
-}
-
 func TestNewConversation(t *testing.T) {
 	checkErr := func(expected error, actual error) {
 		if (expected == nil) != (actual == nil) || expected != nil && expected.Error() != actual.Error() {
@@ -220,6 +189,9 @@ func TestCancelByUser(t *testing.T) {
 
 	bot.ReplyError = true
 	conv, err = conversation.NewConversation(7, bot, state.NewBotState(), config) //active conversation with broken bot
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
 	update = tgbotapi.Update{Message: &tgbotapi.Message{Chat: &tgbotapi.Chat{ID: 7}, Text: "Some update"}}
 	conv.PushUpdate(&update) // to activate the conversation
 	err = conv.CancelByUser()
@@ -296,7 +268,8 @@ func TestPushUpdate(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
-	ctx, _ := context.WithTimeout(context.Background(), time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	defer cancel()
 	firstSentMessage, exit := conv.GetFirstUpdateFromUser(ctx)
 	if exit != false || firstUpdate != *firstSentMessage {
 		t.Error("unexpected conversation first message")

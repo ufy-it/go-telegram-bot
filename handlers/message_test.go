@@ -19,7 +19,7 @@ func TestMessageCreator(t *testing.T) {
 	}
 
 	conversation := mockConversation{}
-	handlerStruct := handler(context.Background(), &conversation, nil)
+	handlerStruct := handler(context.Background(), &conversation)
 
 	err := handlerStruct.Execute(state.NewBotState())
 
@@ -41,7 +41,7 @@ func TestReplyMessageCreator(t *testing.T) {
 	}
 
 	conversation := mockConversation{}
-	handlerStruct := handler(context.Background(), &conversation, &tgbotapi.Message{MessageID: 133})
+	handlerStruct := handler(context.WithValue(context.Background(), handlers.FirstMessageVariable, &tgbotapi.Message{MessageID: 133}), &conversation)
 
 	err := handlerStruct.Execute(state.NewBotState())
 

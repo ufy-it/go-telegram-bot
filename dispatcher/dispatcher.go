@@ -83,17 +83,17 @@ func (d *Dispatcher) handleConversation(ctx context.Context, conv *conversation.
 		message := update.Message
 		var handler handlers.Handler = nil
 		if update.Message.Photo != nil && len(*update.Message.Photo) > 0 && d.commandHandlers.Image != nil {
-			handler = d.commandHandlers.Image(ctx, conv, message) // use image handler
+			handler = d.commandHandlers.Image(context.WithValue(ctx, handlers.FirstMessageVariable, message), conv) // use image handler
 		} else {
 			for _, creator := range d.commandHandlers.List { // find corresponding handler for the first message
 				if creator.CommandRe.MatchString(message.Text) || creator.CommandRe.MatchString(message.Command()) {
-					handler = creator.HandlerCreator(ctx, conv, message)
+					handler = creator.HandlerCreator(context.WithValue(ctx, handlers.FirstMessageVariable, message), conv)
 					break
 				}
 			}
 		}
 		if handler == nil {
-			handler = d.commandHandlers.Default(ctx, conv, message) // use default handler if there is no suitable
+			handler = d.commandHandlers.Default(context.WithValue(ctx, handlers.FirstMessageVariable, message), conv) // use default handler if there is no suitable
 		}
 		err := handler.Execute(d.state) // execute handler
 		if err != nil {

@@ -100,7 +100,7 @@ To add a new high-level handler you need two things:
 #### 1. Write creator for a new handler 
 *Example:*
 ```
-var MyCustomCreator1 = func(ctx context.Context, conversation readers.BotConversation, firstMessage *tgbotapi.Message) convrsationHandler {
+var MyCustomCreator1 = func(ctx context.Context, conversation readers.BotConversation) convrsationHandler {
     // ...
     // get needed data from firstMessage
     // define and set common variables for steps
@@ -158,13 +158,13 @@ If you do not want to manage multy-step conversations, you can simplify your cod
 
 ```
 var MyCustomCreator2 = handlers.OneStepHandlerCreator(
-	func(ctx context.Context, conversation readers.BotConversation, firstMessage *tgbotapi.Message) error {
+	func(ctx context.Context, conversation readers.BotConversation) error {
 	_, err = conversation.SendText("Wellcome to the bot!")
 	return err
 })
 
 var DefaultHandlerCreator = handlers.OneStepHandlerCreator(
-	func(ctx context.Context, conversation readers.BotConversation, firstMessage *tgbotapi.Message) error {
+	func(ctx context.Context, conversation readers.BotConversation) error {
 	_, err = conversation.SendText("The command is not implemented yet")
 	return err
 })
