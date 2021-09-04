@@ -61,7 +61,7 @@ type StepResult struct {
 }
 
 // ConversationStepPerformer is a function that performs a step in a conversaton
-type ConversationStepPerformer func(conversation readers.BotConversation) (StepResult, error)
+type ConversationStepPerformer func() (StepResult, error)
 
 // ConversationStep represents a step of a conversation
 type ConversationStep struct {
@@ -77,10 +77,10 @@ type UserDataWriter func(data interface{}) error
 
 // StandardHandler is a struct that represents a conversation handler
 type StandardHandler struct {
-	Conversation readers.BotConversation // pointer to the object that handles conversation between bot and user
-	Steps        []ConversationStep      // conversation steps
-	GetUserData  UserDataReader          // function to get user data for serialization
-	SetUserData  UserDataWriter          // function to set user-data in case of resumed conversation
+	ChatID      int64              // chat identifier for the conversation
+	Steps       []ConversationStep // conversation steps
+	GetUserData UserDataReader     // function to get user data for serialization
+	SetUserData UserDataWriter     // function to set user-data in case of resumed conversation
 }
 
 // Execute processes the conversation between a user and a handler
@@ -91,12 +91,9 @@ func (h *StandardHandler) Execute(bState state.BotState) error {
 	if bState == nil {
 		return errors.New("Handler started with nil bot state")
 	}
-	step, data := bState.GetConversationStepAndData(h.Conversation.ChatID())
+	step, data := bState.GetConversationStepAndData(h.ChatID)
 	if step < 0 || step >= len(h.Steps) {
 		return fmt.Errorf("step index from state (%d) is out of range", step)
-	}
-	if h.Conversation == nil {
-		return errors.New("Handler started with nil conversation")
 	}
 	if h.GetUserData == nil {
 		return errors.New("Handler is incomplete, GetUserData is nil")
@@ -114,7 +111,7 @@ func (h *StandardHandler) Execute(bState state.BotState) error {
 	}
 	for {
 		if !resumed {
-			err := bState.SaveConversationStepAndData(h.Conversation.ChatID(), step, h.GetUserData())
+			err := bState.SaveConversationStepAndData(h.ChatID, step, h.GetUserData())
 			if err != nil {
 				logger.Error("error saving conversation state: %v", err)
 			}
@@ -123,7 +120,7 @@ func (h *StandardHandler) Execute(bState state.BotState) error {
 		if h.Steps[step].Action == nil {
 			return fmt.Errorf("action for %d'th step is not defined", step)
 		}
-		result, err := h.Steps[step].Action(h.Conversation) // run a conversation step
+		result, err := h.Steps[step].Action() // run a conversation step
 		if err != nil {
 			return err
 		}
