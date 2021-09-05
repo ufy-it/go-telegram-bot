@@ -103,23 +103,16 @@ To add a new high-level handler you need two things:
 var MyCustomCreator1 = func(ctx context.Context, conversation readers.BotConversation) convrsationHandler {
     // ...
     // get needed data from firstMessage
-    // define and set common variables for steps
+    // define and set common variables that reflects the convrsation state that should be preserved
 	var userData = struct {
 		// ...
 	}{
 		// ...
 	}
-    return &baseHandler{ 
-		ChatID: conversation.ChatID(),
-		SetUserData: func(data interface{}) error { // SetUserData and GetUserData allows to save and restore conversation state in case of shutdown
-			bytes, err := json.Marshal(data)
-			if err != nil {
-				return err
-			}
-			return json.Unmarshal(bytes, &userData)
-		},
-		GetUserData: func() interface{} { return &userData },
-		steps: []conversationStep{
+    return NewStatefulHandler(
+		conversation.ChatID(),
+		&userData,
+		[]ConversationStep{
             // ... multiple steps
 			{
 				Action: func() (handlers.StepResult, error) {
@@ -148,8 +141,7 @@ var MyCustomCreator1 = func(ctx context.Context, conversation readers.BotConvers
 					return handlers.ActionResultWithError(handlers.EndConversation, err) // end the conversation
 				},
 			},
-		},
-	}
+		})
 }
 
 ```

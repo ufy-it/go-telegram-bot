@@ -12,17 +12,14 @@ type OneStepCommandHandlerType func(ctx context.Context, conversation readers.Bo
 // OneStepHandlerCreator is a helper function to create handler with just one step and no user-data
 func OneStepHandlerCreator(handler OneStepCommandHandlerType) HandlerCreatorType {
 	return func(ctx context.Context, conversation readers.BotConversation) Handler {
-		return &StandardHandler{
-			ChatID: conversation.ChatID(),
-			Steps: []ConversationStep{
+		return NewStatelessHandler(
+			conversation.ChatID(),
+			[]ConversationStep{
 				{
 					Action: func() (StepResult, error) {
 						return ActionResultWithError(EndConversation, handler(ctx, conversation))
 					},
 				},
-			},
-			GetUserData: func() interface{} { return nil },
-			SetUserData: func(data interface{}) error { return nil },
-		}
+			})
 	}
 }

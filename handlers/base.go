@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -69,22 +70,51 @@ type ConversationStep struct {
 	Action ConversationStepPerformer
 }
 
-// UserDataReader is a function that provides uer-data for serialization
-type UserDataReader func() interface{}
+// userDataReader is a function that provides uer-data for serialization
+type userDataReader func() interface{}
 
-// UserDataWriter is a function that fills user-data from []byte
-type UserDataWriter func(data interface{}) error
+// userDataWriter is a function that fills user-data from []byte
+type userDataWriter func(data interface{}) error
 
-// StandardHandler is a struct that represents a conversation handler
-type StandardHandler struct {
+// standardHandler is a struct that represents a conversation handler
+type standardHandler struct {
 	ChatID      int64              // chat identifier for the conversation
 	Steps       []ConversationStep // conversation steps
-	GetUserData UserDataReader     // function to get user data for serialization
-	SetUserData UserDataWriter     // function to set user-data in case of resumed conversation
+	GetUserData userDataReader     // function to get user data for serialization
+	SetUserData userDataWriter     // function to set user-data in case of resumed conversation
+}
+
+// NewStatefulHandler generates a handler for chatID with non-nil userData and steps
+// userData should be a pointer to a json-serializible struct
+func NewStatefulHandler(chatID int64, userData interface{}, steps []ConversationStep) Handler {
+	return &standardHandler{
+		ChatID:      chatID,
+		Steps:       steps,
+		GetUserData: func() interface{} { return userData },
+		SetUserData: func(data interface{}) error {
+			bytes, err := json.Marshal(data)
+			if err != nil {
+				return err
+			}
+			return json.Unmarshal(bytes, userData)
+		},
+	}
+}
+
+// NewStatelessHandler generates a handler for chatID with no state data (other than the index of current step)
+func NewStatelessHandler(chatID int64, steps []ConversationStep) Handler {
+	return &standardHandler{
+		ChatID:      chatID,
+		Steps:       steps,
+		GetUserData: func() interface{} { return nil },
+		SetUserData: func(data interface{}) error {
+			return nil
+		},
+	}
 }
 
 // Execute processes the conversation between a user and a handler
-func (h *StandardHandler) Execute(bState state.BotState) error {
+func (h *standardHandler) Execute(bState state.BotState) error {
 	if len(h.Steps) == 0 {
 		return nil
 	}
