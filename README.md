@@ -19,7 +19,7 @@ To run a bot you need to call `bot.RunBot( config )` with a proper configuration
 
 Below is the configuration for the bot: 
 
-```
+```go
 type Config struct {
 	APIToken               string                   // Bot API token
 	Debug                  bool                     // flag to indicate whether run the bot in debug
@@ -48,7 +48,7 @@ type Config struct {
 
 Conversation dispatcher should be configured with the following parameters:
 
-```
+```go
 // Config contains configuration parameters for a new dispatcher
 type Config struct {
 	MaxOpenConversations           int                 // the maximum number of open conversations
@@ -69,7 +69,7 @@ type Config struct {
 
 Conversation object should be configured with the following parameters:
 
-```
+```go
 // Config is struct with configuration parameters for a conversation
 type Config struct {
 	MaxMessageQueue int                       // the maximum size of message queue for a conversation
@@ -99,7 +99,7 @@ Each conversation starts with a top-level handler. A handler may contain a numbe
 To add a new high-level handler you need two things:
 #### 1. Write creator for a new handler 
 *Example:*
-```
+```go
 var MyCustomCreator1 = func(ctx context.Context, conversation readers.BotConversation) convrsationHandler {
     // ...
     // get needed data from firstMessage
@@ -148,7 +148,7 @@ var MyCustomCreator1 = func(ctx context.Context, conversation readers.BotConvers
 
 If you do not want to manage multy-step conversations, you can simplify your code, using helpers:
 
-```
+```go
 var MyCustomCreator2 = handlers.OneStepHandlerCreator(
 	func(ctx context.Context, conversation readers.BotConversation) error {
 	_, err = conversation.SendText("Wellcome to the bot!")
@@ -162,7 +162,7 @@ var DefaultHandlerCreator = handlers.OneStepHandlerCreator(
 })
 ```
 #### 2. Add command to `allHandlerCreators` list that should be passed to Dispatcher 
-```
+```go
 var AllHandlerCreators = h.CommandHandlers{
 	Default: DefaultHandlerCreator, // this handler is a fallback if the command entered by a user does not match any from the List
 	List: []h.CommandHandler{
@@ -174,7 +174,7 @@ var AllHandlerCreators = h.CommandHandlers{
 ```
 
 #### 3. Run the bot from your code
-```
+```go
 err = bot.RunBot(
 	context.Background(),
 	bot.Config{
