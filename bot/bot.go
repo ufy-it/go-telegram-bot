@@ -30,7 +30,7 @@ type Config struct {
 	KeyFile            string // "key.pem"
 }
 
-func loadFile(filename string) ([]byte, error) {
+func loadFile(filename string) (interface{}, error) {
 	if filename == "" {
 		return nil, nil
 	}
