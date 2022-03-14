@@ -1,9 +1,11 @@
 package bot
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/ufy-it/go-telegram-bot/dispatcher"
 	"github.com/ufy-it/go-telegram-bot/jobs"
@@ -28,24 +30,53 @@ type Config struct {
 	KeyFile            string // "key.pem"
 }
 
+func loadFile(filename string) ([]byte, error) {
+	if filename == "" {
+		return nil, nil
+	}
+	file, err := os.Open(filename)
+
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	stats, statsErr := file.Stat()
+	if statsErr != nil {
+		return nil, statsErr
+	}
+
+	var size int64 = stats.Size()
+	bytes := make([]byte, size)
+
+	bufr := bufio.NewReader(file)
+	_, err = bufr.Read(bytes)
+
+	return bytes, err
+}
+
 // RunBot handles conversation with bot users and runs jobs in an infinite loop
 func RunBot(ctx context.Context, config Config) error {
 	bot, err := tgbotapi.NewBotAPI(config.APIToken)
 	if err != nil {
-		return fmt.Errorf("Error accessing the bot: %v", err)
+		return fmt.Errorf("error accessing the bot: %v", err)
 	}
 	bot.Debug = config.Debug
 	logger.Note("Authorized on account %s", bot.Self.UserName)
 
 	var upd tgbotapi.UpdatesChannel
 	if config.WebHook {
-		_, err = bot.SetWebhook(tgbotapi.NewWebhookWithCert(config.WebHookExternalURL, config.CertFile))
+		cert, err := loadFile(config.CertFile)
 		if err != nil {
-			return fmt.Errorf("Error setting web-hook: %v", err)
+			return fmt.Errorf("cannot read cert file: %v", err)
+		}
+		_, err = bot.SetWebhook(tgbotapi.NewWebhookWithCert(config.WebHookExternalURL, cert))
+		if err != nil {
+			return fmt.Errorf("error setting web-hook: %v", err)
 		}
 		info, err := bot.GetWebhookInfo()
 		if err != nil {
-			return fmt.Errorf("Error getting web-hook info: %v", err)
+			return fmt.Errorf("error getting web-hook info: %v", err)
 		}
 		if info.LastErrorDate != 0 {
 			logger.Warning("[Telegram callback failed]%s", info.LastErrorMessage)
