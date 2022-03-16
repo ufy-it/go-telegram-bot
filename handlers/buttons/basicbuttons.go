@@ -9,6 +9,7 @@ import (
 
 // Button is a struct that handles button related information
 type Button struct {
+	URL        bool
 	Text       string // text to display
 	Data       string // data to get with callback
 	uniqueData string // UUID pass to telegram (to ensure that we will not missread another button of this kind)
@@ -20,9 +21,19 @@ const IgnoreButtonData = "@ignore"
 // NewButton constructs a Button struct
 func NewButton(text string, data string) Button {
 	return Button{
+		URL:        false,
 		Text:       text,
 		Data:       data,
 		uniqueData: betterguid.New(),
+	}
+}
+
+func NewExternalURLButton(text string, url string) Button {
+	return Button{
+		URL:        true,
+		Text:       text,
+		Data:       url,
+		uniqueData: url,
 	}
 }
 
@@ -109,7 +120,11 @@ func (bs ButtonSet) GetInlineKeyboard() tgbotapi.InlineKeyboardMarkup {
 	for _, buttonRow := range bs.rows {
 		var row []tgbotapi.InlineKeyboardButton
 		for _, button := range buttonRow {
-			row = append(row, tgbotapi.NewInlineKeyboardButtonData(button.Text, button.uniqueData))
+			if button.URL {
+				row = append(row, tgbotapi.NewInlineKeyboardButtonURL(button.Text, button.Data))
+			} else {
+				row = append(row, tgbotapi.NewInlineKeyboardButtonData(button.Text, button.uniqueData))
+			}
 		}
 		keyboard.InlineKeyboard = append(keyboard.InlineKeyboard, row)
 	}
