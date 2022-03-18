@@ -27,7 +27,7 @@ type Config struct {
 	Dispatcher             dispatcher.Config        // configuration for the dispatcher
 	Jobs                   jobs.JobDescriptionsList // list of jobs to run
 	UpdateTimeout          int
-	StateFile              string // path to the state file
+	StateIO                state.StateIO // abstraction that allows to save and restore the bot state
 	AllowBotUsers          bool   // flag that indicates whether conversation with bot users allowed
 	WebHookExternalURL     string // "https://www.google.com:8443/"+bot.Token
 	WebHookInternalURL     string // "0.0.0.0:8443"
@@ -40,7 +40,7 @@ type Config struct {
 * `Debug` - boolean flag to indicate whether the bot should be run in debug mode
 * `WebHook` - boolean flag to indicate whether the bot should be run as WebHook, or pulling. Read more about modes here: https://go-telegram-bot-api.dev/
 * `UpdateTimeout` - timeout for reading updates in polling mode
-* `StateFile` - path to the state file, where bot saves state (in JSON) for all ongoing conversations
+* `StateIO` - object that saves state (in JSON) for all ongoing conversations
 * `AllowBotUsers` - boolean flag that allows bot to answer other bots, otherwise it will ignore
 * `WebHookExternalURL`, `WebHookInternalURL`, `CertFile`, `KeyFile` - configuration parameters for the web hook mode
 * `Jobs` - list of jobs to run
@@ -197,10 +197,11 @@ err = bot.RunBot(
 		},
 		Jobs:          make([]jobs.JobDescription, 0), // empty list of jobs
 		UpdateTimeout: 60, // 
-		StateFile:     "botstate.json",
+		StateIO:       state.NewFileState("botstate.json"),
 		AllowBotUsers: false,
 	})
 ```
 
 ### TO DO
 * Add multy-language support in technical messages
+* Fix WebHook mode
