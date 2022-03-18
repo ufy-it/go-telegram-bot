@@ -8,6 +8,7 @@ import (
 	"github.com/ufy-it/go-telegram-bot/dispatcher"
 	"github.com/ufy-it/go-telegram-bot/jobs"
 	"github.com/ufy-it/go-telegram-bot/logger"
+	"github.com/ufy-it/go-telegram-bot/state"
 
 	tgbotapi "github.com/Syfaro/telegram-bot-api"
 )
@@ -20,12 +21,12 @@ type Config struct {
 	Dispatcher         dispatcher.Config        // configuration for the dispatcher
 	Jobs               jobs.JobDescriptionsList // list of jobs to run
 	UpdateTimeout      int
-	StateFile          string // path to the state file
-	AllowBotUsers      bool   // flag that indicates whether conversation with bot users allowed
-	WebHookExternalURL string // "https://www.google.com:8443/"+bot.Token
-	WebHookInternalURL string // "0.0.0.0:8443"
-	CertFile           string // "cert.pem"
-	KeyFile            string // "key.pem"
+	StateIO            state.StateIO // interface for loading and saving the bot state
+	AllowBotUsers      bool          // flag that indicates whether conversation with bot users allowed
+	WebHookExternalURL string        // "https://www.google.com:8443/"+bot.Token
+	WebHookInternalURL string        // "0.0.0.0:8443"
+	CertFile           string        // "cert.pem"
+	KeyFile            string        // "key.pem"
 }
 
 // RunBot handles conversation with bot users and runs jobs in an infinite loop
@@ -57,7 +58,7 @@ func RunBot(ctx context.Context, config Config) error {
 		ucfg.Timeout = config.UpdateTimeout
 		upd, _ = bot.GetUpdatesChan(ucfg)
 	}
-	disp, err := dispatcher.NewDispatcher(ctx, config.Dispatcher, bot, config.StateFile)
+	disp, err := dispatcher.NewDispatcher(ctx, config.Dispatcher, bot, config.StateIO)
 	if err != nil {
 		return err
 	}

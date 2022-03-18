@@ -168,7 +168,7 @@ func (d *Dispatcher) dispatchLoop(ctx context.Context) {
 }
 
 // NewDispatcher creates a new Dispatcher objects and starts a separate thread to clear old conversations
-func NewDispatcher(ctx context.Context, config Config, bot *tgbotapi.BotAPI, stateFile string) (*Dispatcher, error) {
+func NewDispatcher(ctx context.Context, config Config, bot *tgbotapi.BotAPI, stateIO state.StateIO) (*Dispatcher, error) {
 	d := &Dispatcher{
 		conversations:                  make(map[int64]conversatonWithCancel),
 		conversationConfig:             config.ConversationConfig,
@@ -178,19 +178,19 @@ func NewDispatcher(ctx context.Context, config Config, bot *tgbotapi.BotAPI, sta
 		mu:                             sync.Mutex{},
 		cancelCommand:                  config.CancelCommand,
 		toManyOpenConversationsMessage: config.ToManyOpenConversationsMessage,
-		state:                          state.NewBotState(),
+		state:                          state.NewBotState(stateIO),
 		incomeCh:                       make(chan *tgbotapi.Update),
 		commandHandlers:                config.Handlers,
 	}
 	if d.commandHandlers == nil {
 		return nil, errors.New("handlers cannot be nil")
 	}
-	if stateFile != "" { //load previouse state from file
-		err := d.state.LoadState(stateFile)
-		if err != nil {
-			logger.Warning("cannot load previouse state: %v. Will start from blank", err)
-		}
+
+	err := d.state.LoadState()
+	if err != nil {
+		logger.Warning("cannot load previouse state: %v. will start from blank", err)
 	}
+
 	// resume conversations from the state
 	for _, chatID := range d.state.GetConversations() {
 		conv, err := conversation.NewConversation(chatID, d.bot, d.state, d.conversationConfig)
@@ -217,7 +217,7 @@ func (d *Dispatcher) isCancelCommand(update *tgbotapi.Update) bool {
 
 // SendSingleMessage waits until the conversation with chatID is closed and sends a single message from bot to a user
 func (d *Dispatcher) SendSingleMessage(ctx context.Context, chatID int64, text string) error {
-	closedErr := errors.New("Cannot send a message, context closed")
+	closedErr := errors.New("cannot send a message, context closed")
 	msg := tgbotapi.NewMessage(chatID, text)
 	for {
 		select {

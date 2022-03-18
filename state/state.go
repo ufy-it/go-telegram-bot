@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
 	"sync"
 
 	tgbotapi "github.com/Syfaro/telegram-bot-api"
@@ -24,13 +22,14 @@ type botState struct {
 	filename           string                       // file to store state on disk
 	closed             bool                         // flag that indicates that state is closed and should not do any saves
 	mu                 sync.RWMutex                 // mutex to synchronize read-write operations to the map of conversation states
-	muFile             sync.Mutex                   // mutex to synchronize saving to a file
+	muIO               sync.Mutex                   // mutex to synchronize saving to a IO
+	io                 StateIO                      // abstraction for reading and writing states
 }
 
 // BotState is an interface for object that records current state of all ongoing conversations
 type BotState interface {
 	RemoveConverastionState(chatID int64) error // removes record about a current conversation. Should be called after a high-level handler is done
-	LoadState(filename string) error            // Load state from a file
+	LoadState() error                           // Load state from a file
 	Close() error                               // Forbid furter savings
 
 	GetConversations() []int64                                  // get list of conversations
@@ -42,10 +41,11 @@ type BotState interface {
 }
 
 // NewBotState method constructs a new BotState object
-func NewBotState() BotState {
+func NewBotState(io StateIO) BotState {
 	return &botState{
 		ConversationStates: make(map[int64]*ConversationState),
 		closed:             false,
+		io:                 io,
 	}
 }
 
@@ -59,17 +59,19 @@ func (bs *botState) RemoveConverastionState(chatID int64) error {
 	return bs.saveState()
 }
 
-func (bs *botState) LoadState(filename string) error {
+func (bs *botState) LoadState() error {
 	bs.mu.Lock()
 	defer bs.mu.Unlock()
-	bs.filename = filename
-	file, err := ioutil.ReadFile(filename)
+	if bs.io == nil {
+		return errors.New("state io is not defined")
+	}
+	file, err := bs.io.Load()
 	if err != nil {
-		return fmt.Errorf("cannot read state file %s: %v", filename, err)
+		return err
 	}
 	err = json.Unmarshal([]byte(file), bs)
 	if err != nil {
-		return fmt.Errorf("cannot load state from file %s: %v", filename, err)
+		return fmt.Errorf("cannot load state: %v", err)
 	}
 	return nil
 }
@@ -87,34 +89,19 @@ func (bs *botState) saveState() error {
 	if bs.closed {
 		return errors.New("the state is closed for saving")
 	}
-	bs.muFile.Lock()
+	bs.muIO.Lock()
 	bs.mu.RLock()
 	defer bs.mu.RUnlock()
-	defer bs.muFile.Unlock()
+	defer bs.muIO.Unlock()
 
-	if bs.filename == "" {
-		return errors.New("cannot save state: filename is not set")
-	}
 	content, err := json.MarshalIndent(bs, "", " ")
 	if err != nil {
 		return fmt.Errorf("cannot marshal state to json: %v", err)
 	}
-	tempFile, err := ioutil.TempFile(".", "persistant")
-	if err != nil {
-		return fmt.Errorf("cannot ctreate temp file: %v", err)
-	}
-	_, err = tempFile.Write(content)
-	if err != nil {
-		return fmt.Errorf("cannot write state to a temp file: %v", err)
-	}
-	err = tempFile.Close()
-	if err != nil {
-		return fmt.Errorf("cannot write state to a temp file: %v", err)
-	}
 
-	err = os.Rename(tempFile.Name(), bs.filename)
+	err = bs.io.Save(content)
 	if err != nil {
-		return fmt.Errorf("cannot rename temp file to the target file %s: %v", bs.filename, err)
+		return fmt.Errorf("cannot save state to io: %v", err)
 	}
 
 	return nil
@@ -149,7 +136,7 @@ func (bs *botState) getConversatonState(chatID int64) *ConversationState {
 		Step:        0,
 		Data:        nil,
 	}
-	state, _ := bs.ConversationStates[chatID]
+	state := bs.ConversationStates[chatID]
 	return state
 }
 
@@ -169,9 +156,9 @@ func (bs *botState) StartConversationWithUpdate(chatID int64, firstUpdate *tgbot
 
 func (bs *botState) SaveConversationStepAndData(chatID int64, step int, data interface{}) error {
 	state := bs.getConversatonState(chatID)
-	bs.muFile.Lock() //forbid saving while updating
+	bs.muIO.Lock() //forbid saving while updating
 	state.Data = data
 	state.Step = step
-	bs.muFile.Unlock()
+	bs.muIO.Unlock()
 	return bs.saveState()
 }

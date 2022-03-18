@@ -85,7 +85,7 @@ func TestOneStepCreator(t *testing.T) {
 
 	handlerStruct := handler(context.Background(), &mockConversation{})
 
-	err := handlerStruct.Execute(state.NewBotState())
+	err := handlerStruct.Execute(state.NewBotState(state.NewFileState("")))
 
 	if err == nil || err.Error() != "Some error" {
 		t.Errorf("Unexpacted error: %v", err)

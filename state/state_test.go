@@ -12,7 +12,7 @@ import (
 )
 
 func TestGetConversations(t *testing.T) {
-	s := state.NewBotState()
+	s := state.NewBotState(state.NewFileState(""))
 	if s == nil {
 		t.Error("cannot create state object")
 	}
@@ -39,7 +39,7 @@ func TestGetConversations(t *testing.T) {
 }
 
 func TestClose(t *testing.T) {
-	s := state.NewBotState()
+	s := state.NewBotState(state.NewFileState(""))
 	if s == nil {
 		t.Error("cannot create state object")
 	}
@@ -62,7 +62,7 @@ func TestClose(t *testing.T) {
 }
 
 func TestGetConversatonFirstUpdate(t *testing.T) {
-	s := state.NewBotState()
+	s := state.NewBotState(state.NewFileState(""))
 	if s == nil {
 		t.Error("cannot create state object")
 	}
@@ -78,7 +78,7 @@ func TestGetConversatonFirstUpdate(t *testing.T) {
 }
 
 func TestGetConversationStepAnddata(t *testing.T) {
-	s := state.NewBotState()
+	s := state.NewBotState(state.NewFileState(""))
 	if s == nil {
 		t.Error("cannot create state object")
 	}

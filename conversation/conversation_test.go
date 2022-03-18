@@ -135,7 +135,7 @@ func TestNewConversation(t *testing.T) {
 		t.Error("conversation should not been created")
 	}
 
-	conv, err = conversation.NewConversation(3, &dummyBot{}, state.NewBotState(), config)
+	conv, err = conversation.NewConversation(3, &dummyBot{}, state.NewBotState(state.NewFileState("")), config)
 	checkErr(nil, err)
 	if conv == nil {
 		t.Error("conversation should be created succesfully")
@@ -148,7 +148,7 @@ func TestCancelByUser(t *testing.T) {
 		CloseByUserMessage: "user canceled conversation",
 	}
 	bot := newDummyBot()
-	conv, err := conversation.NewConversation(5, bot, state.NewBotState(), config) //non-active conversation
+	conv, err := conversation.NewConversation(5, bot, state.NewBotState(state.NewFileState("")), config) //non-active conversation
 	if err != nil || conv == nil {
 		t.Error("conversation should be created succesfully")
 	}
@@ -159,7 +159,7 @@ func TestCancelByUser(t *testing.T) {
 		t.Errorf("expected 0 message sent throug bot, got %d", len(bot.SentMessages))
 	}
 
-	conv, err = conversation.NewConversation(5, bot, state.NewBotState(), config) //active conversation
+	conv, err = conversation.NewConversation(5, bot, state.NewBotState(state.NewFileState("")), config) //active conversation
 	if err != nil || conv == nil {
 		t.Error("conversation should be created succesfully")
 	}
@@ -188,7 +188,7 @@ func TestCancelByUser(t *testing.T) {
 	}
 
 	bot.ReplyError = true
-	conv, err = conversation.NewConversation(7, bot, state.NewBotState(), config) //active conversation with broken bot
+	conv, err = conversation.NewConversation(7, bot, state.NewBotState(state.NewFileState("")), config) //active conversation with broken bot
 	if err != nil {
 		t.Errorf("unexpected error %v", err)
 	}
@@ -208,7 +208,7 @@ func TestPushUpdate(t *testing.T) {
 
 	bot := newDummyBot()
 
-	conv, err := conversation.NewConversation(11, bot, state.NewBotState(), config) // active conversation
+	conv, err := conversation.NewConversation(11, bot, state.NewBotState(state.NewFileState("")), config) // active conversation
 	if err != nil || conv == nil {
 		t.Error("conversation should be created succesfully")
 	}
@@ -253,7 +253,7 @@ func TestPushUpdate(t *testing.T) {
 
 	config.MaxMessageQueue = 2
 
-	conv, err = conversation.NewConversation(12, bot, state.NewBotState(), config)
+	conv, err = conversation.NewConversation(12, bot, state.NewBotState(state.NewFileState("")), config)
 	if err != nil || conv == nil {
 		t.Error("conversation should be created succesfully")
 	}
@@ -286,7 +286,7 @@ func TestMaxMessageQueue(t *testing.T) {
 	}
 
 	bot := newDummyBot()
-	conv, err := conversation.NewConversation(13, bot, state.NewBotState(), config) //closed conversation
+	conv, err := conversation.NewConversation(13, bot, state.NewBotState(state.NewFileState("")), config) //closed conversation
 	if err != nil || conv == nil {
 		t.Error("conversation should be created succesfully")
 	}
@@ -323,7 +323,7 @@ func TestMessageCreation(t *testing.T) {
 		MaxMessageQueue: 1,
 	}
 	bot := newDummyBot()
-	conv, _ := conversation.NewConversation(17, bot, state.NewBotState(), config)
+	conv, _ := conversation.NewConversation(17, bot, state.NewBotState(state.NewFileState("")), config)
 	photoConfig = conv.NewPhotoShare("photoID", "Caption")
 	textMessage = conv.NewMessage("some text")
 
