@@ -204,4 +204,4 @@ err = bot.RunBot(
 
 ### TO DO
 * Add multy-language support in technical messages
-* Fix WebHook mode
+
