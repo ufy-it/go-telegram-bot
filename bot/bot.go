@@ -3,6 +3,7 @@ package bot
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net/http"
 
 	"github.com/ufy-it/go-telegram-bot/dispatcher"
@@ -29,6 +30,16 @@ type Config struct {
 	KeyFile            string        // "key.pem"
 }
 
+const letterBytes = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+func randStringBytes(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(b)
+}
+
 // RunBot handles conversation with bot users and runs jobs in an infinite loop
 func RunBot(ctx context.Context, config Config) error {
 	bot, err := tgbotapi.NewBotAPI(config.APIToken)
@@ -40,7 +51,12 @@ func RunBot(ctx context.Context, config Config) error {
 
 	var upd tgbotapi.UpdatesChannel
 	if config.WebHook {
-		_, err = bot.SetWebhook(tgbotapi.NewWebhookWithCert(config.WebHookExternalURL, config.CertFile))
+		salt := randStringBytes(10)
+		if config.CertFile == "" {
+			_, err = bot.SetWebhook(tgbotapi.NewWebhook(config.WebHookExternalURL + "/" + bot.Token + salt))
+		} else {
+			_, err = bot.SetWebhook(tgbotapi.NewWebhookWithCert(config.WebHookExternalURL+"/"+bot.Token+salt, config.CertFile))
+		}
 		if err != nil {
 			return fmt.Errorf("error setting web-hook: %v", err)
 		}
@@ -51,9 +67,18 @@ func RunBot(ctx context.Context, config Config) error {
 		if info.LastErrorDate != 0 {
 			logger.Warning("[Telegram callback failed]%s", info.LastErrorMessage)
 		}
-		upd = bot.ListenForWebhook("/" + bot.Token)
-		go http.ListenAndServeTLS(config.WebHookInternalURL, config.CertFile, config.KeyFile, nil)
+
+		upd = bot.ListenForWebhook("/" + bot.Token + salt)
+		if config.CertFile == "" {
+			go http.ListenAndServe(config.WebHookInternalURL, nil)
+		} else {
+			go http.ListenAndServeTLS(config.WebHookInternalURL, config.CertFile, config.KeyFile, nil)
+		}
 	} else {
+		_, err = bot.RemoveWebhook()
+		if err != nil {
+			return fmt.Errorf("error removing web-hook: %v", err)
+		}
 		var ucfg tgbotapi.UpdateConfig = tgbotapi.NewUpdate(0)
 		ucfg.Timeout = config.UpdateTimeout
 		upd, _ = bot.GetUpdatesChan(ucfg)
