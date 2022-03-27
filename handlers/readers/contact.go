@@ -5,7 +5,7 @@ import (
 
 	"github.com/ufy-it/go-telegram-bot/handlers/buttons"
 
-	tgbotapi "github.com/Syfaro/telegram-bot-api"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // RequestUserContact requests user to share it's contact.

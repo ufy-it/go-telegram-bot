@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	tgbotapi "github.com/Syfaro/telegram-bot-api"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // BotConversation implements interface for reading and writing messages from the bot side

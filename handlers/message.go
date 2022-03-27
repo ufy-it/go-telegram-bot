@@ -6,7 +6,7 @@ import (
 
 	"github.com/ufy-it/go-telegram-bot/handlers/readers"
 
-	tgbotapi "github.com/Syfaro/telegram-bot-api"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // MessageHandlerCreator returns handler that prints a text message to a user

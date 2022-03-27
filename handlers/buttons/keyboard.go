@@ -1,6 +1,6 @@
 package buttons
 
-import tgbotapi "github.com/Syfaro/telegram-bot-api"
+import tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
 // RequestContactButton returns keyboard with request contact button
 func RequestContactButton(text string) tgbotapi.ReplyKeyboardMarkup {
