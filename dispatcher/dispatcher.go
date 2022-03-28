@@ -12,7 +12,7 @@ import (
 	"github.com/ufy-it/go-telegram-bot/logger"
 	"github.com/ufy-it/go-telegram-bot/state"
 
-	tgbotapi "github.com/Syfaro/telegram-bot-api"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // conversationWithCancel contains a conversation object and CancelFunction for the conversation context
@@ -82,7 +82,7 @@ func (d *Dispatcher) handleConversation(ctx context.Context, conv *conversation.
 		}
 		message := update.Message
 		var handler handlers.Handler = nil
-		if update.Message.Photo != nil && len(*update.Message.Photo) > 0 && d.commandHandlers.Image != nil {
+		if update.Message.Photo != nil && len(update.Message.Photo) > 0 && d.commandHandlers.Image != nil {
 			handler = d.commandHandlers.Image(context.WithValue(ctx, handlers.FirstMessageVariable, message), conv) // use image handler
 		} else {
 			for _, creator := range d.commandHandlers.List { // find corresponding handler for the first message

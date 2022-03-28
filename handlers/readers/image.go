@@ -5,7 +5,7 @@ import (
 
 	"github.com/ufy-it/go-telegram-bot/handlers/buttons"
 
-	tgbotapi "github.com/Syfaro/telegram-bot-api"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // UserImageAndDataReply contains image input from a user
@@ -19,7 +19,7 @@ type UserImageAndDataReply struct {
 func GetImage(ctx context.Context, conversation BotConversation, text string, navigation buttons.ButtonSet, textOnIncorrect string) (UserImageAndDataReply, error) {
 	msg := conversation.NewMessage(text)
 	validator := func(update *tgbotapi.Update) (bool, string) {
-		if update != nil && update.Message != nil && update.Message.Photo != nil && len(*update.Message.Photo) > 0 {
+		if update != nil && update.Message != nil && update.Message.Photo != nil && len(update.Message.Photo) > 0 {
 			return true, ""
 		}
 		return false, textOnIncorrect
@@ -29,8 +29,8 @@ func GetImage(ctx context.Context, conversation BotConversation, text string, na
 	if reply != nil && reply.CallbackQuery != nil {
 		result.Data = reply.CallbackQuery.Data
 	}
-	if reply != nil && reply.Message != nil && reply.Message.Photo != nil && len(*reply.Message.Photo) > 0 {
-		result.Image = (*reply.Message.Photo)[0]
+	if reply != nil && reply.Message != nil && reply.Message.Photo != nil && len(reply.Message.Photo) > 0 {
+		result.Image = (reply.Message.Photo)[0]
 	}
 	return result, err
 }

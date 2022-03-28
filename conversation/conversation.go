@@ -9,14 +9,13 @@ import (
 	"github.com/ufy-it/go-telegram-bot/logger"
 	"github.com/ufy-it/go-telegram-bot/state"
 
-	tgbotapi "github.com/Syfaro/telegram-bot-api"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // SendBot interface declares methods needed from Bot by a conversation
 type SendBot interface {
 	// Send sends a message through the bot
 	Send(msg tgbotapi.Chattable) (tgbotapi.Message, error)
-	AnswerCallbackQuery(config tgbotapi.CallbackConfig) (tgbotapi.APIResponse, error)
 }
 
 // Config is struct with configuration parameters for a conversation
@@ -218,9 +217,16 @@ func (c *BotConversation) NewMessage(text string) tgbotapi.MessageConfig {
 
 // NewPhotoShare creates a PhotoConfig for this conversation with HTML parse mode
 func (c *BotConversation) NewPhotoShare(photoFileID string, caption string) tgbotapi.PhotoConfig {
-	msg := tgbotapi.NewPhotoShare(c.chatID, photoFileID)
-	msg.Caption = caption
-	msg.ParseMode = "HTML"
+	msg := tgbotapi.PhotoConfig{
+		Caption: caption,
+		BaseFile: tgbotapi.BaseFile{
+			File: tgbotapi.FileID(photoFileID),
+			BaseChat: tgbotapi.BaseChat{
+				ChatID: c.ChatID(),
+			},
+		},
+		ParseMode: "HTML",
+	}
 	return msg
 }
 
@@ -243,6 +249,6 @@ func (c *BotConversation) EditMessageTextAndInlineMarkup(messageID int, text str
 
 func (c *BotConversation) AnswerButton(callbackQueryID string) error {
 	msg := tgbotapi.NewCallback(callbackQueryID, "")
-	_, err := c.bot.AnswerCallbackQuery(msg)
+	_, err := c.bot.Send(msg)
 	return err
 }

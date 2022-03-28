@@ -11,7 +11,7 @@ import (
 	"github.com/ufy-it/go-telegram-bot/conversation"
 	"github.com/ufy-it/go-telegram-bot/state"
 
-	tgbotapi "github.com/Syfaro/telegram-bot-api"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // ------------------------------------------------
@@ -327,7 +327,7 @@ func TestMessageCreation(t *testing.T) {
 	photoConfig = conv.NewPhotoShare("photoID", "Caption")
 	textMessage = conv.NewMessage("some text")
 
-	if photoConfig.Caption != "Caption" || photoConfig.FileID != "photoID" || photoConfig.ChatID != 17 || photoConfig.ParseMode != "HTML" {
+	if photoConfig.Caption != "Caption" || photoConfig.File != tgbotapi.FileID("photoID") || photoConfig.ChatID != 17 || photoConfig.ParseMode != "HTML" {
 		t.Errorf("unexpected photo config %v", photoConfig)
 	}
 	if textMessage.ChatID != 17 || textMessage.Text != "some text" || textMessage.ParseMode != "HTML" {

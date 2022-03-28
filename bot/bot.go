@@ -11,7 +11,7 @@ import (
 	"github.com/ufy-it/go-telegram-bot/logger"
 	"github.com/ufy-it/go-telegram-bot/state"
 
-	tgbotapi "github.com/Syfaro/telegram-bot-api"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // Config describes configuration oprions for the bot
@@ -52,11 +52,16 @@ func RunBot(ctx context.Context, config Config) error {
 	var upd tgbotapi.UpdatesChannel
 	if config.WebHook {
 		salt := randStringBytes(10)
+		var wh tgbotapi.WebhookConfig
 		if config.CertFile == "" {
-			_, err = bot.SetWebhook(tgbotapi.NewWebhook(config.WebHookExternalURL + "/" + bot.Token + salt))
+			wh, err = tgbotapi.NewWebhook(config.WebHookExternalURL + "/" + bot.Token + salt)
 		} else {
-			_, err = bot.SetWebhook(tgbotapi.NewWebhookWithCert(config.WebHookExternalURL+"/"+bot.Token+salt, config.CertFile))
+			wh, err = tgbotapi.NewWebhookWithCert(config.WebHookExternalURL+"/"+bot.Token+salt, tgbotapi.FilePath(config.CertFile))
 		}
+		if err != nil {
+			return fmt.Errorf("error creating webhook config: %v", err)
+		}
+		_, err = bot.Request(wh)
 		if err != nil {
 			return fmt.Errorf("error setting web-hook: %v", err)
 		}
@@ -75,13 +80,13 @@ func RunBot(ctx context.Context, config Config) error {
 			go http.ListenAndServeTLS(config.WebHookInternalURL, config.CertFile, config.KeyFile, nil)
 		}
 	} else {
-		_, err = bot.RemoveWebhook()
+		_, err = bot.Request(tgbotapi.DeleteWebhookConfig{DropPendingUpdates: true})
 		if err != nil {
 			return fmt.Errorf("error removing web-hook: %v", err)
 		}
 		var ucfg tgbotapi.UpdateConfig = tgbotapi.NewUpdate(0)
 		ucfg.Timeout = config.UpdateTimeout
-		upd, _ = bot.GetUpdatesChan(ucfg)
+		upd = bot.GetUpdatesChan(ucfg)
 	}
 	disp, err := dispatcher.NewDispatcher(ctx, config.Dispatcher, bot, config.StateIO)
 	if err != nil {

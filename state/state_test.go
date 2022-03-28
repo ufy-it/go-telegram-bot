@@ -8,7 +8,7 @@ import (
 
 	"github.com/ufy-it/go-telegram-bot/state"
 
-	tgbotapi "github.com/Syfaro/telegram-bot-api"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 func TestGetConversations(t *testing.T) {
