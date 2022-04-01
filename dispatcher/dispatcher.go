@@ -80,20 +80,16 @@ func (d *Dispatcher) handleConversation(ctx context.Context, conv *conversation.
 			d.state.RemoveConverastionState(conv.ChatID())
 			continue
 		}
-		message := update.Message
+
 		var handler handlers.Handler = nil
-		if update.Message.Photo != nil && len(update.Message.Photo) > 0 && d.commandHandlers.Image != nil {
-			handler = d.commandHandlers.Image(context.WithValue(ctx, handlers.FirstMessageVariable, message), conv) // use image handler
-		} else {
-			for _, creator := range d.commandHandlers.List { // find corresponding handler for the first message
-				if creator.CommandRe.MatchString(message.Text) || creator.CommandRe.MatchString(message.Command()) {
-					handler = creator.HandlerCreator(context.WithValue(ctx, handlers.FirstMessageVariable, message), conv)
-					break
-				}
+		for _, creator := range d.commandHandlers.List { // find corresponding handler for the first update
+			if creator.CommandSelector(update) {
+				handler = creator.HandlerCreator(context.WithValue(ctx, handlers.FirstUpdateVariable, update), conv)
 			}
 		}
+
 		if handler == nil {
-			handler = d.commandHandlers.Default(context.WithValue(ctx, handlers.FirstMessageVariable, message), conv) // use default handler if there is no suitable
+			handler = d.commandHandlers.Default(context.WithValue(ctx, handlers.FirstUpdateVariable, update), conv) // use default handler if there is no suitable
 		}
 		err := handler.Execute(d.state) // execute handler
 		if err != nil {

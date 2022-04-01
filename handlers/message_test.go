@@ -41,7 +41,7 @@ func TestReplyMessageCreator(t *testing.T) {
 	}
 
 	conversation := mockConversation{}
-	handlerStruct := handler(context.WithValue(context.Background(), handlers.FirstMessageVariable, &tgbotapi.Message{MessageID: 133}), &conversation)
+	handlerStruct := handler(context.WithValue(context.Background(), handlers.FirstUpdateVariable, &tgbotapi.Update{UpdateID: 133}), &conversation)
 
 	err := handlerStruct.Execute(state.NewBotState(state.NewFileState("")))
 

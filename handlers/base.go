@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/ufy-it/go-telegram-bot/handlers/readers"
 	"github.com/ufy-it/go-telegram-bot/logger"
 	"github.com/ufy-it/go-telegram-bot/state"
@@ -15,7 +15,7 @@ import (
 type HandlerContextVariables string
 
 const (
-	FirstMessageVariable HandlerContextVariables = "first_message"
+	FirstUpdateVariable HandlerContextVariables = "first_update"
 )
 
 // Handler is an interface for a conversation handler
@@ -26,17 +26,19 @@ type Handler interface {
 // HandlerCreatorType is a type of a functor that can create a handler for a conversation
 type HandlerCreatorType func(ctx context.Context, conversation readers.BotConversation) Handler
 
+// CommandSelectorType is a type of functor that should tell whether the handler matches the command
+type CommandSelectorType func(firstUpdate *tgbotapi.Update) bool
+
 // CommandHandler is a struct that contains regexp to determine start command for the handler and function-creator to build the handler
 type CommandHandler struct {
-	CommandRe      *regexp.Regexp     // regular expression that specifies the command
-	HandlerCreator HandlerCreatorType // function to create a handler for the command
+	CommandSelector CommandSelectorType // selector for the command
+	HandlerCreator  HandlerCreatorType  // function to create a handler for the command
 }
 
 // CommandHandlers is a structure that contains list of command handlers
 // and default handler that processes commands that has-not been mutched by any of command-handlers
 type CommandHandlers struct {
 	Default          HandlerCreatorType // Default handler will handle any command that does
-	Image            HandlerCreatorType // Handler for the image input
 	List             []CommandHandler   // List of command handlers
 	UserErrorMessage string             // Message to display to user in case of error in a handler
 }
