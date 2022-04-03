@@ -193,6 +193,9 @@ func (c *BotConversation) ReplyWithText(text string, msgID int) (int, error) {
 func (c *BotConversation) DeleteMessage(msgID int) error {
 	deleteMsg := tgbotapi.NewDeleteMessage(c.chatID, msgID)
 	_, err := c.SendGeneralMessage(deleteMsg)
+	if err.Error() == "json: cannot unmarshal bool into Go value of type tgbotapi.Message" { // bug in api
+		err = nil
+	}
 	return err
 }
 

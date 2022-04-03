@@ -84,10 +84,11 @@ func AskGenericMessageReplyWithValidation(ctx context.Context,
 			return reply, false, nil
 		}
 		if sentID != -1 && repeatOriginalOnIncorrect { // no need to delete a message
-			err := conversation.DeleteMessage(sentID) // delete and resend original message
-			if err == nil {
-				sentID, err = sendOriginalMessage()
+			err = conversation.DeleteMessage(sentID) // delete and resend original message
+			if err != nil {
+				logger.Warning("failed to delete old mesage: %v", err)
 			}
+			sentID, err = sendOriginalMessage()
 		}
 	}
 }
