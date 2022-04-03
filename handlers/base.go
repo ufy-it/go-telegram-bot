@@ -38,9 +38,8 @@ type CommandHandler struct {
 // CommandHandlers is a structure that contains list of command handlers
 // and default handler that processes commands that has-not been mutched by any of command-handlers
 type CommandHandlers struct {
-	Default          HandlerCreatorType // Default handler will handle any command that does
-	List             []CommandHandler   // List of command handlers
-	UserErrorMessage string             // Message to display to user in case of error in a handler
+	Default HandlerCreatorType // Default handler will handle any command that does
+	List    []CommandHandler   // List of command handlers
 }
 
 // StepResultAction is a type for a handler's step result
@@ -80,19 +79,19 @@ type userDataWriter func(data interface{}) error
 
 // standardHandler is a struct that represents a conversation handler
 type standardHandler struct {
-	ChatID      int64              // chat identifier for the conversation
-	Steps       []ConversationStep // conversation steps
-	GetUserData userDataReader     // function to get user data for serialization
-	SetUserData userDataWriter     // function to set user-data in case of resumed conversation
+	ConversationID int64              // conversation ID
+	Steps          []ConversationStep // conversation steps
+	GetUserData    userDataReader     // function to get user data for serialization
+	SetUserData    userDataWriter     // function to set user-data in case of resumed conversation
 }
 
 // NewStatefulHandler generates a handler for chatID with non-nil userData and steps
 // userData should be a pointer to a json-serializible struct
-func NewStatefulHandler(chatID int64, userData interface{}, steps []ConversationStep) Handler {
+func NewStatefulHandler(conversationID int64, userData interface{}, steps []ConversationStep) Handler {
 	return &standardHandler{
-		ChatID:      chatID,
-		Steps:       steps,
-		GetUserData: func() interface{} { return userData },
+		ConversationID: conversationID,
+		Steps:          steps,
+		GetUserData:    func() interface{} { return userData },
 		SetUserData: func(data interface{}) error {
 			bytes, err := json.Marshal(data)
 			if err != nil {
@@ -104,11 +103,11 @@ func NewStatefulHandler(chatID int64, userData interface{}, steps []Conversation
 }
 
 // NewStatelessHandler generates a handler for chatID with no state data (other than the index of current step)
-func NewStatelessHandler(chatID int64, steps []ConversationStep) Handler {
+func NewStatelessHandler(conversationID int64, steps []ConversationStep) Handler {
 	return &standardHandler{
-		ChatID:      chatID,
-		Steps:       steps,
-		GetUserData: func() interface{} { return nil },
+		ConversationID: conversationID,
+		Steps:          steps,
+		GetUserData:    func() interface{} { return nil },
 		SetUserData: func(data interface{}) error {
 			return nil
 		},
@@ -123,7 +122,7 @@ func (h *standardHandler) Execute(bState state.BotState) error {
 	if bState == nil {
 		return errors.New("Handler started with nil bot state")
 	}
-	step, data := bState.GetConversationStepAndData(h.ChatID)
+	step, data := bState.GetConversationStepAndData(h.ConversationID)
 	if step < 0 || step >= len(h.Steps) {
 		return fmt.Errorf("step index from state (%d) is out of range", step)
 	}
@@ -143,7 +142,7 @@ func (h *standardHandler) Execute(bState state.BotState) error {
 	}
 	for {
 		if !resumed {
-			err := bState.SaveConversationStepAndData(h.ChatID, step, h.GetUserData())
+			err := bState.SaveConversationStepAndData(h.ConversationID, step, h.GetUserData())
 			if err != nil {
 				logger.Error("error saving conversation state: %v", err)
 			}

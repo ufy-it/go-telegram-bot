@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/ufy-it/go-telegram-bot/logger"
@@ -11,6 +12,8 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
+
+var currentConversationID int64 = 0 // global conversation ID counter
 
 // SendBot interface declares methods needed from Bot by a conversation
 type SendBot interface {
@@ -24,29 +27,38 @@ type Config struct {
 	TimeoutMinutes  int // timeout for a user's input
 
 	CloseByBotMessage     string // message to send to a user if the conversation is closed from the bot side
-	CloseByUserMessage    string // message to send to a user if they decided to close the conversation
 	ToManyMessagesMessage string // message to send to a user in case to too many unprocessed messages
 }
 
-// NewConversation createActionActions a new conversation struct and starts handler in a separate thread
+// NewConversation creates a new conversation struct and starts handler in a separate thread
 func NewConversation(chatID int64, bot SendBot, botState state.BotState, config Config) (*BotConversation, error) {
+	return NewConversationWithID(currentConversationID, chatID, bot, botState, config)
+}
+
+// NewConversationWithID creates a new conversation struct with pre-defined conversation ID. Should be used for starting conversations from a saved state
+func NewConversationWithID(converationID, chatID int64, bot SendBot, botState state.BotState, config Config) (*BotConversation, error) {
 	if bot == nil {
 		return nil, errors.New("cannot create conversation, bot object should not be nil")
 	}
+	currentConversationID = converationID + 1
 	result := &BotConversation{
 		updates: make(chan *tgbotapi.Update, config.MaxMessageQueue),
 
-		chatID: chatID,
+		chatID:         chatID,
+		conversationID: converationID,
 
 		bot:             bot,
 		maxMessageQueue: config.MaxMessageQueue,
 		timeoutMinutes:  config.TimeoutMinutes,
 
 		closeByBotMessage:     config.CloseByBotMessage,
-		closeByUserMessage:    config.CloseByUserMessage,
 		toManyMessagesMessage: config.ToManyMessagesMessage,
 
-		canceledByUser: false,
+		canceled: false,
+
+		lastMessageID: 0,
+
+		mu: sync.Mutex{},
 	}
 
 	return result, nil
@@ -78,21 +90,30 @@ func GetUpdateChatID(update *tgbotapi.Update) (int64, error) {
 type BotConversation struct {
 	updates chan *tgbotapi.Update //channel with incoming messages from a user
 
-	chatID int64 //id of the telegram chat
+	chatID         int64 // id of the telegram chat
+	lastMessageID  int   // id of the last message sent from the bot to user
+	conversationID int64 // unique ID of the converation object
 
 	maxMessageQueue int     // max size of messages buffer
 	timeoutMinutes  int     // timeout from the latest message from a user in minutes before closing the conversation due to a long inactivity
 	bot             SendBot // pointer to the bot
 
 	closeByBotMessage     string // message to send to a user if the conversation is closed from the bot side
-	closeByUserMessage    string // message to send to a user if they decided to close the conversation
 	toManyMessagesMessage string // message to send to a user in case to too many unprocessed messages
 
-	canceledByUser bool // flag that indicates that the conversation was canceled by the user
+	canceled bool // flag that indicates that the conversation was canceled by the user
+
+	mu sync.Mutex // mutex to ensure that conversation will not send any messages after close
 }
 
 // Kill() closes the conversation and sends signal to a handler to finish
 func (c *BotConversation) CancelByBot() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.canceled {
+		return fmt.Errorf("the conversation with chat %d is already canceled", c.chatID)
+	}
+	c.canceled = true
 	msg := tgbotapi.NewMessage(c.chatID, c.closeByBotMessage)
 	msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
 	_, err := c.bot.Send(msg)
@@ -102,15 +123,33 @@ func (c *BotConversation) CancelByBot() error {
 	return nil
 }
 
+// CancelByUser tolds conversation object that user switched to another conversation that will be handled by a different conversation object
 func (c *BotConversation) CancelByUser() error {
-	c.canceledByUser = true
-	msg := tgbotapi.NewMessage(c.chatID, c.closeByUserMessage)
-	msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
-	_, err := c.bot.Send(msg)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.canceled {
+		return fmt.Errorf("the conversation with chat %d is already canceled", c.chatID)
+	}
+	c.canceled = true
+	if c.lastMessageID == 0 {
+		return nil
+	}
+	_, err := c.bot.Send(
+		tgbotapi.NewEditMessageReplyMarkup(
+			c.chatID,
+			c.lastMessageID,
+			tgbotapi.InlineKeyboardMarkup{InlineKeyboard: make([][]tgbotapi.InlineKeyboardButton, 0)},
+		),
+	)
 	if err != nil {
-		return fmt.Errorf("error while sending cancel-by-user message to chat %d: %v", c.chatID, err)
+		logger.Warning("error while sending cancel-by-user message to chat %d: %v", c.chatID, err)
 	}
 	return nil
+}
+
+// Is canceled indicates that the conversation was canceled by a user
+func (c *BotConversation) IsCanceled() bool {
+	return c.canceled
 }
 
 // PushMessage checks whether a conversation can accept one more message, and forwards message to handler
@@ -150,7 +189,7 @@ func (c *BotConversation) GetUpdateFromUser(ctx context.Context) (*tgbotapi.Upda
 	case update := <-c.updates:
 		return update, false
 	case <-ctx.Done():
-		if !c.canceledByUser {
+		if !c.canceled {
 			err := c.CancelByBot()
 			if err != nil {
 				logger.Error(err.Error())
@@ -166,14 +205,26 @@ func (c *BotConversation) GetUpdateFromUser(ctx context.Context) (*tgbotapi.Upda
 	}
 }
 
+// ChatID returns chat ID of the conversation
 func (c *BotConversation) ChatID() int64 {
 	return c.chatID
 }
 
+// ConverationID returns unique id of the conversation object
+func (c *BotConversation) ConversationID() int64 {
+	return c.conversationID
+}
+
 // Send message using the Bot
 func (c *BotConversation) SendGeneralMessage(msg tgbotapi.Chattable) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.canceled {
+		return 0, fmt.Errorf("the conversation with chat %d is already canceled", c.chatID)
+	}
 	// ToDo: check thy we are sending message to the same chatID
 	message, err := c.bot.Send(msg)
+	c.lastMessageID = message.MessageID
 	return message.MessageID, err
 }
 
@@ -251,6 +302,11 @@ func (c *BotConversation) EditMessageTextAndInlineMarkup(messageID int, text str
 }
 
 func (c *BotConversation) AnswerButton(callbackQueryID string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.canceled {
+		return fmt.Errorf("the conversation with chat %d is already canceled", c.chatID)
+	}
 	msg := tgbotapi.NewCallback(callbackQueryID, "")
 	_, err := c.bot.Send(msg)
 	return err

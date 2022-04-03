@@ -9,7 +9,8 @@ import (
 
 // BotConversation implements interface for reading and writing messages from the bot side
 type BotConversation interface {
-	ChatID() int64 // get current chatID
+	ChatID() int64         // get current chatID
+	ConversationID() int64 // get conversation object ID
 
 	GetUpdateFromUser(ctx context.Context) (*tgbotapi.Update, bool) // read update from a user (will hang until a user sends new mupdate, or conversation is closed)
 

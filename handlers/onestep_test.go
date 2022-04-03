@@ -22,6 +22,10 @@ func (mc *mockConversation) ChatID() int64 {
 	return 0
 }
 
+func (mc *mockConversation) ConversationID() int64 {
+	return 0
+}
+
 func (mc *mockConversation) GetUpdateFromUser(ctx context.Context) (*tgbotapi.Update, bool) {
 	return nil, false
 }

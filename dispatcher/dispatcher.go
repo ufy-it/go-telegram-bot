@@ -27,13 +27,14 @@ type Dispatcher struct {
 
 	mu sync.Mutex //mutex to sync operations over the conversations map between main thread and handler routins
 
-	conversations      map[int64]conversatonWithCancel
-	conversationConfig conversation.Config
-	commandHandlers    *handlers.CommandHandlers // list of command handlers
+	conversations         map[int64]conversatonWithCancel
+	conversationConfig    conversation.Config
+	commandHandlers       *handlers.CommandHandlers // list of command handlers
+	globalCommandHandlers []handlers.CommandHandler // list of commands that can be started at any point of conversation
 
 	singleMessageTrySendInterval   int
-	cancelCommand                  string // command that cancels any conversation
 	toManyOpenConversationsMessage string
+	userErrorMessage               string // Message to display to user in case of error in a handler
 
 	bot   *tgbotapi.BotAPI
 	state state.BotState
@@ -46,22 +47,25 @@ type Config struct {
 	MaxOpenConversations           int                       // the maximum number of open conversations
 	SingleMessageTrySendInterval   int                       // interval between several tries of send single message to a user
 	ConversationConfig             conversation.Config       // configuration for a conversation
-	CancelCommand                  string                    // the command that a user can use to cancel any conversation
 	ToManyOpenConversationsMessage string                    // message to send to a user if a conversation cannot be started
 	Handlers                       *handlers.CommandHandlers // list of handlers for command handling
+	GlobalHandlers                 []handlers.CommandHandler // list of handlers that can be started at any point of conversation
+	UserErrorMessage               string                    // Message to display to user in case of error in a handler
 }
 
 // start conversation handling
 func (d *Dispatcher) handleConversation(ctx context.Context, conv *conversation.BotConversation) {
 	var exit bool = false
 	for {
-		update := d.state.GetConversatonFirstUpdate(conv.ChatID())
+		update := d.state.GetConversatonFirstUpdate(conv.ConversationID())
 		if update == nil { // if the conversation is not started from the state
 			d.mu.Lock() // to make sure that no new messagess will arrive to this conversation
 			update, exit = conv.GetFirstUpdateFromUser(ctx)
 			if exit {
-				delete(d.conversations, conv.ChatID())                // all new messages will go to a new go-routine
-				err := d.state.RemoveConverastionState(conv.ChatID()) // this is still under the lock to prevent starting a new go-routine that uses the same state
+				if !conv.IsCanceled() { // otherwise it should be already deleted
+					delete(d.conversations, conv.ChatID()) // all new messages will go to a new go-routine
+				}
+				err := d.state.RemoveConverastionState(conv.ConversationID()) // this is still under the lock to prevent starting a new go-routine that uses the same state
 				d.mu.Unlock()
 				if err != nil {
 					logger.Error("cannot remove conversation state: %v", err)
@@ -69,37 +73,39 @@ func (d *Dispatcher) handleConversation(ctx context.Context, conv *conversation.
 				return // exit handling loop as there is no active messages, or the parent context is closed
 			} else {
 				d.mu.Unlock()
-				err := d.state.StartConversationWithUpdate(conv.ChatID(), update)
+				err := d.state.StartConversationWithUpdate(conv.ConversationID(), conv.ChatID(), update)
 				if err != nil {
 					logger.Error("cannot add conversation to state: %v", err)
 				}
 			}
 		}
-		if update.Message == nil {
-			logger.Warning("cannot process non-message high-level command in conversation with %d", conv.ChatID())
-			d.state.RemoveConverastionState(conv.ChatID())
-			continue
-		}
 
-		var handler handlers.Handler = nil
-		for _, creator := range d.commandHandlers.List { // find corresponding handler for the first update
-			if creator.CommandSelector(update) {
-				handler = creator.HandlerCreator(context.WithValue(ctx, handlers.FirstUpdateVariable, update), conv)
+		selectHandlerFromList := func(list []handlers.CommandHandler, firstUpdate *tgbotapi.Update) handlers.Handler {
+			for _, creator := range list {
+				if creator.CommandSelector(update) {
+					return creator.HandlerCreator(context.WithValue(ctx, handlers.FirstUpdateVariable, update), conv)
+				}
 			}
+			return nil
 		}
 
+		handler := selectHandlerFromList(d.globalCommandHandlers, update)
+		if handler == nil {
+			handler = selectHandlerFromList(d.commandHandlers.List, update)
+		}
 		if handler == nil {
 			handler = d.commandHandlers.Default(context.WithValue(ctx, handlers.FirstUpdateVariable, update), conv) // use default handler if there is no suitable
 		}
+
 		err := handler.Execute(d.state) // execute handler
 		if err != nil {
 			logger.Error("in conversation with %d got error: %v", conv.ChatID(), err)
-			_, err = conv.SendText(d.commandHandlers.UserErrorMessage)
+			_, err = conv.SendText(d.userErrorMessage)
 			if err != nil {
 				logger.Warning("cannot send error notification to %d", conv.ChatID())
 			}
 		}
-		err = d.state.RemoveConverastionState(conv.ChatID()) // clear state for the conversation
+		err = d.state.RemoveConverastionState(conv.ConversationID()) // clear state for the conversation
 		if err != nil {
 			logger.Error("cannot remove conversation state: %v", err)
 		}
@@ -112,21 +118,16 @@ func (d *Dispatcher) dispatchUpdate(ctx context.Context, update *tgbotapi.Update
 		return errors.New("cannot dispatch update, context is closed")
 	default:
 	}
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
+
 	chatID, err := conversation.GetUpdateChatID(update)
 	if err != nil {
 		return err
 	}
-	if conv, ok := d.conversations[chatID]; ok {
-		if d.isCancelCommand(update) {
-			err := conv.c.CancelByUser()
-			conv.cancel()
-			delete(d.conversations, chatID)
-			return err
-		}
-		return conv.c.PushUpdate(update)
-	} else if len(d.conversations) < d.maxOpenConversations {
+
+	startNewConversation := func() error {
 		conv, err := conversation.NewConversation(chatID, d.bot, d.state, d.conversationConfig)
 		if err != nil {
 			return err
@@ -141,6 +142,21 @@ func (d *Dispatcher) dispatchUpdate(ctx context.Context, update *tgbotapi.Update
 		d.conversations[chatID] = conversatonWithCancel{conv, cancel}
 		go d.handleConversation(convCtx, conv)
 		return nil
+	}
+
+	if conv, ok := d.conversations[chatID]; ok {
+		if d.isGlobalCommand(update) {
+			err := conv.c.CancelByUser()
+			conv.cancel()
+			delete(d.conversations, chatID)
+			if err != nil {
+				return err
+			}
+			return startNewConversation()
+		}
+		return conv.c.PushUpdate(update)
+	} else if len(d.conversations) < d.maxOpenConversations {
+		return startNewConversation()
 	} else {
 		msg := tgbotapi.NewMessage(chatID, d.toManyOpenConversationsMessage)
 		_, err := d.bot.Send(msg)
@@ -172,11 +188,12 @@ func NewDispatcher(ctx context.Context, config Config, bot *tgbotapi.BotAPI, sta
 		singleMessageTrySendInterval:   config.SingleMessageTrySendInterval,
 		bot:                            bot,
 		mu:                             sync.Mutex{},
-		cancelCommand:                  config.CancelCommand,
 		toManyOpenConversationsMessage: config.ToManyOpenConversationsMessage,
 		state:                          state.NewBotState(stateIO),
 		incomeCh:                       make(chan *tgbotapi.Update),
 		commandHandlers:                config.Handlers,
+		globalCommandHandlers:          config.GlobalHandlers,
+		userErrorMessage:               config.UserErrorMessage,
 	}
 	if d.commandHandlers == nil {
 		return nil, errors.New("handlers cannot be nil")
@@ -188,16 +205,16 @@ func NewDispatcher(ctx context.Context, config Config, bot *tgbotapi.BotAPI, sta
 	}
 
 	// resume conversations from the state
-	for _, chatID := range d.state.GetConversations() {
-		conv, err := conversation.NewConversation(chatID, d.bot, d.state, d.conversationConfig)
+	for _, conversationID := range d.state.GetConversationIDs() {
+		conv, err := conversation.NewConversationWithID(conversationID, d.state.GetConversationChatID(conversationID), d.bot, d.state, d.conversationConfig)
 		if err != nil {
 			logger.Error(err.Error())
 			continue
 		}
 		convCtx, cancel := context.WithCancel(ctx)
-		d.conversations[chatID] = conversatonWithCancel{conv, cancel}
-		if _, ok := d.conversations[chatID]; !ok {
-			logger.Warning("cannot start conversation with %d from state", chatID)
+		d.conversations[conversationID] = conversatonWithCancel{conv, cancel}
+		if _, ok := d.conversations[conversationID]; !ok {
+			logger.Warning("cannot start conversation with %d from state", conversationID)
 		} else {
 			go d.handleConversation(convCtx, conv)
 		}
@@ -206,9 +223,14 @@ func NewDispatcher(ctx context.Context, config Config, bot *tgbotapi.BotAPI, sta
 	return d, nil
 }
 
-// isCancelCommand returns true if a user entered cancel command
-func (d *Dispatcher) isCancelCommand(update *tgbotapi.Update) bool {
-	return update.Message != nil && update.Message.Text == d.cancelCommand
+// isGlobalCommand returns true if a user started a global command
+func (d *Dispatcher) isGlobalCommand(update *tgbotapi.Update) bool {
+	for _, creator := range d.globalCommandHandlers {
+		if creator.CommandSelector(update) {
+			return true
+		}
+	}
+	return false
 }
 
 // SendSingleMessage waits until the conversation with chatID is closed and sends a single message from bot to a user

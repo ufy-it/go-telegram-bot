@@ -144,8 +144,7 @@ func TestNewConversation(t *testing.T) {
 
 func TestCancelByUser(t *testing.T) {
 	config := conversation.Config{
-		MaxMessageQueue:    1,
-		CloseByUserMessage: "user canceled conversation",
+		MaxMessageQueue: 1,
 	}
 	bot := newDummyBot()
 	conv, err := conversation.NewConversation(5, bot, state.NewBotState(state.NewFileState("")), config) //non-active conversation
@@ -155,7 +154,7 @@ func TestCancelByUser(t *testing.T) {
 	if conv.CancelByUser() != nil {
 		t.Error("conversation should be succesfully cancelled")
 	}
-	if len(bot.SentMessages) != 1 {
+	if len(bot.SentMessages) != 0 {
 		t.Errorf("expected 0 message sent throug bot, got %d", len(bot.SentMessages))
 	}
 
@@ -170,21 +169,8 @@ func TestCancelByUser(t *testing.T) {
 	if conv.CancelByUser() != nil {
 		t.Error("conversation should be succesfully cancelled")
 	}
-	if len(bot.SentMessages) != 2 {
+	if len(bot.SentMessages) != 0 {
 		t.Errorf("expected 0 message sent throug bot, got %d", len(bot.SentMessages))
-	}
-	sentMessage, err := json.Marshal(bot.SentMessages[0])
-	if err != nil {
-		t.Errorf("unexpected error %v", err)
-	}
-	msg := tgbotapi.NewMessage(5, config.CloseByUserMessage)
-	msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
-	expectedMessage, err := json.Marshal(msg)
-	if err != nil {
-		t.Errorf("unexpected error %v", err)
-	}
-	if string(sentMessage) != string(expectedMessage) {
-		t.Errorf("message about user cancel '%s' differs from expected '%s'", string(sentMessage), string(expectedMessage))
 	}
 
 	bot.ReplyError = true
