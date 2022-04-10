@@ -108,9 +108,7 @@ func NewStatelessHandler(conversationID int64, steps []ConversationStep) Handler
 		ConversationID: conversationID,
 		Steps:          steps,
 		GetUserData:    func() interface{} { return nil },
-		SetUserData: func(data interface{}) error {
-			return nil
-		},
+		SetUserData:    func(data interface{}) error { return nil },
 	}
 }
 
@@ -120,17 +118,17 @@ func (h *standardHandler) Execute(bState state.BotState) error {
 		return nil
 	}
 	if bState == nil {
-		return errors.New("Handler started with nil bot state")
+		return errors.New("handler started with nil bot state")
 	}
 	step, data := bState.GetConversationStepAndData(h.ConversationID)
 	if step < 0 || step >= len(h.Steps) {
 		return fmt.Errorf("step index from state (%d) is out of range", step)
 	}
 	if h.GetUserData == nil {
-		return errors.New("Handler is incomplete, GetUserData is nil")
+		return errors.New("handler is incomplete, GetUserData is nil")
 	}
 	if h.SetUserData == nil {
-		return errors.New("Handler is incomplete, SetUserData is nil")
+		return errors.New("handler is incomplete, SetUserData is nil")
 	}
 	resumed := false
 	if data != nil {

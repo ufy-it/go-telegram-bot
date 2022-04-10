@@ -27,6 +27,8 @@ type BotConversation interface {
 	EditReplyMarkup(messageID int, markup tgbotapi.InlineKeyboardMarkup) error                             // replace reply markup in the existing message
 	EditMessageText(messageID int, text string) error                                                      // replace text in the existing message
 	EditMessageTextAndInlineMarkup(messageID int, text string, markup tgbotapi.InlineKeyboardMarkup) error // replace both text and reply markup in the existing message
+
+	GlobalKeyboard() interface{} // get global keybard for the conversation user
 }
 
 // UserTextAndDataReply handles simplified information from the update

@@ -24,7 +24,13 @@ func ReplyMessageHandlerCreator(message string) HandlerCreatorType {
 		if !ok {
 			return errors.New("expected first update in the context")
 		}
-		_, err := conversation.ReplyWithText(message, firstUpdate.UpdateID)
+
+		var err error
+		if firstUpdate.Message != nil {
+			_, err = conversation.ReplyWithText(message, firstUpdate.Message.MessageID)
+		} else {
+			_, err = conversation.SendText(message)
+		}
 		return err
 	})
 }

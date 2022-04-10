@@ -170,8 +170,8 @@ func (bs *botState) getConversatonState(converationID int64) *ConversationState 
 	return state
 }
 
-func (bs *botState) GetConversatonFirstUpdate(converationID int64) *tgbotapi.Update {
-	return bs.getConversatonState(converationID).FirstUpdate
+func (bs *botState) GetConversatonFirstUpdate(conversationID int64) *tgbotapi.Update {
+	return bs.getConversatonState(conversationID).FirstUpdate
 }
 
 func (bs *botState) GetConversationStepAndData(converationID int64) (int, interface{}) {

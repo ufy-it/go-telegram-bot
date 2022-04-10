@@ -21,22 +21,40 @@ type SendBot interface {
 	Send(msg tgbotapi.Chattable) (tgbotapi.Message, error)
 }
 
-// Config is struct with configuration parameters for a conversation
-type Config struct {
-	MaxMessageQueue int // the maximum size of message queue for a conversation
-	TimeoutMinutes  int // timeout for a user's input
+// SpecialMessageFuncType is a function type
+type SpecialMessageFuncType func() error
 
-	CloseByBotMessage     string // message to send to a user if the conversation is closed from the bot side
-	ToManyMessagesMessage string // message to send to a user in case to too many unprocessed messages
-}
+//
+type GlobalKeyboardFuncType func() interface{}
 
 // NewConversation creates a new conversation struct and starts handler in a separate thread
-func NewConversation(chatID int64, bot SendBot, botState state.BotState, config Config) (*BotConversation, error) {
-	return NewConversationWithID(currentConversationID, chatID, bot, botState, config)
+func NewConversation(
+	chatID int64,
+	bot SendBot,
+	botState state.BotState,
+	tooManyMessages, cancelByBot, cancelByUser SpecialMessageFuncType,
+	globalKeyboardFunc GlobalKeyboardFuncType,
+	config Config) (*BotConversation, error) {
+	return NewConversationWithID(
+		currentConversationID,
+		chatID,
+		bot,
+		botState,
+		tooManyMessages,
+		cancelByBot,
+		cancelByUser,
+		globalKeyboardFunc,
+		config)
 }
 
 // NewConversationWithID creates a new conversation struct with pre-defined conversation ID. Should be used for starting conversations from a saved state
-func NewConversationWithID(converationID, chatID int64, bot SendBot, botState state.BotState, config Config) (*BotConversation, error) {
+func NewConversationWithID(
+	converationID, chatID int64,
+	bot SendBot,
+	botState state.BotState,
+	tooManyMessages, cancelByBot, cancelByUser SpecialMessageFuncType,
+	globalKeyboardFunc GlobalKeyboardFuncType,
+	config Config) (*BotConversation, error) {
 	if bot == nil {
 		return nil, errors.New("cannot create conversation, bot object should not be nil")
 	}
@@ -51,12 +69,13 @@ func NewConversationWithID(converationID, chatID int64, bot SendBot, botState st
 		maxMessageQueue: config.MaxMessageQueue,
 		timeoutMinutes:  config.TimeoutMinutes,
 
-		closeByBotMessage:     config.CloseByBotMessage,
-		toManyMessagesMessage: config.ToManyMessagesMessage,
+		cancelByBotMessage:     cancelByBot,
+		cancelByUserMessage:    cancelByUser,
+		tooManyMessagesMessage: tooManyMessages,
+
+		globalKeyboardFunc: globalKeyboardFunc,
 
 		canceled: false,
-
-		lastMessageID: 0,
 
 		mu: sync.Mutex{},
 	}
@@ -91,15 +110,17 @@ type BotConversation struct {
 	updates chan *tgbotapi.Update //channel with incoming messages from a user
 
 	chatID         int64 // id of the telegram chat
-	lastMessageID  int   // id of the last message sent from the bot to user
 	conversationID int64 // unique ID of the converation object
 
 	maxMessageQueue int     // max size of messages buffer
 	timeoutMinutes  int     // timeout from the latest message from a user in minutes before closing the conversation due to a long inactivity
 	bot             SendBot // pointer to the bot
 
-	closeByBotMessage     string // message to send to a user if the conversation is closed from the bot side
-	toManyMessagesMessage string // message to send to a user in case to too many unprocessed messages
+	cancelByBotMessage     SpecialMessageFuncType // message to send to a user if the conversation is closed from the bot side
+	cancelByUserMessage    SpecialMessageFuncType // message to send to a user if they closed by user
+	tooManyMessagesMessage SpecialMessageFuncType // message to send to a user in case to too many unprocessed messages
+
+	globalKeyboardFunc GlobalKeyboardFuncType // function to generate global keyboard
 
 	canceled bool // flag that indicates that the conversation was canceled by the user
 
@@ -114,9 +135,7 @@ func (c *BotConversation) CancelByBot() error {
 		return fmt.Errorf("the conversation with chat %d is already canceled", c.chatID)
 	}
 	c.canceled = true
-	msg := tgbotapi.NewMessage(c.chatID, c.closeByBotMessage)
-	msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
-	_, err := c.bot.Send(msg)
+	err := c.cancelByBotMessage()
 	if err != nil {
 		return fmt.Errorf("error while sending terminate mesage to chat %d: %v", c.chatID, err)
 	}
@@ -131,16 +150,7 @@ func (c *BotConversation) CancelByUser() error {
 		return fmt.Errorf("the conversation with chat %d is already canceled", c.chatID)
 	}
 	c.canceled = true
-	if c.lastMessageID == 0 {
-		return nil
-	}
-	_, err := c.bot.Send(
-		tgbotapi.NewEditMessageReplyMarkup(
-			c.chatID,
-			c.lastMessageID,
-			tgbotapi.InlineKeyboardMarkup{InlineKeyboard: make([][]tgbotapi.InlineKeyboardButton, 0)},
-		),
-	)
+	err := c.cancelByUserMessage()
 	if err != nil {
 		logger.Warning("error while sending cancel-by-user message to chat %d: %v", c.chatID, err)
 	}
@@ -162,8 +172,7 @@ func (c *BotConversation) PushUpdate(update *tgbotapi.Update) error {
 		return fmt.Errorf("tried to process update from UserID %d in the conversation with UserID %d", chatID, c.chatID)
 	}
 	if len(c.updates) >= c.maxMessageQueue {
-		msg := tgbotapi.NewMessage(c.chatID, c.toManyMessagesMessage)
-		_, err := c.bot.Send(msg)
+		err := c.tooManyMessagesMessage()
 		return fmt.Errorf("to many open unprocessed messages in the conversation (%v)", err)
 	}
 	c.updates <- update
@@ -224,7 +233,6 @@ func (c *BotConversation) SendGeneralMessage(msg tgbotapi.Chattable) (int, error
 	}
 	// ToDo: check thy we are sending message to the same chatID
 	message, err := c.bot.Send(msg)
-	c.lastMessageID = message.MessageID
 	return message.MessageID, err
 }
 
@@ -310,4 +318,8 @@ func (c *BotConversation) AnswerButton(callbackQueryID string) error {
 	msg := tgbotapi.NewCallback(callbackQueryID, "")
 	_, err := c.bot.Send(msg)
 	return err
+}
+
+func (c *BotConversation) GlobalKeyboard() interface{} {
+	return c.globalKeyboardFunc()
 }
