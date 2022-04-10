@@ -6,18 +6,23 @@ import (
 	"github.com/ufy-it/go-telegram-bot/handlers/buttons"
 )
 
+// GlobalKeyboardType is a alias for interface{}
 type GlobalKeyboardType interface{}
 
+// GlobalKeyboardFuncType is a type for function that generates a global keyboard for a specific chat
 type GlobalKeyboardFuncType func(chatID int64) GlobalKeyboardType
 
+// RemoveKeyboard is a Global Keyboard function that removes an permanent keyboard
 func RemoveKeyboard() GlobalKeyboardType {
 	return buttons.RemoveKeyboard()
 }
 
+// SingleRowGlobalKeyboard generates a single-row Global Keyboard from slice of strings
 func SingleRowGlobalKeyboard(resize bool, rowText ...string) GlobalKeyboardType {
 	return NewGlobalKeyboard(resize, [][]string{rowText})
 }
 
+// SingleColumnGlobalKeyboard generates a single-column Global Keyboard from slice of strings
 func SingleColumnGlobalKeyboard(resize bool, columnText ...string) GlobalKeyboardType {
 	buttonText := make([][]string, len(columnText))
 	for i, text := range columnText {
@@ -27,6 +32,7 @@ func SingleColumnGlobalKeyboard(resize bool, columnText ...string) GlobalKeyboar
 	return NewGlobalKeyboard(resize, buttonText)
 }
 
+// NewGlobalKeyboard generates a Global Keyboard from a two dimentional array of strings
 func NewGlobalKeyboard(resize bool, buttonText [][]string) GlobalKeyboardType {
 	bu := make([][]tgbotapi.KeyboardButton, len(buttonText))
 	for i, row := range buttonText {

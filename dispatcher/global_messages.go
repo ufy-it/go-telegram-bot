@@ -1,5 +1,6 @@
 package dispatcher
 
+// MessageIDType is an enum type for global message ID
 type MessageIDType int
 
 const (
@@ -11,6 +12,7 @@ const (
 	ConversationEnded                             // a message to send to user after conversation was ended successfully
 )
 
+// GlobalMessageFuncType type of a function that should return global messages for a dedicated user
 type GlobalMessageFuncType func(chatID int64, messageID MessageIDType) string
 
 // EmptyGlobalMessageFunc returns empty string for all messages
