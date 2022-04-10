@@ -119,6 +119,13 @@ func (d *dummyBot) AnswerCallbackQuery(config tgbotapi.CallbackConfig) (tgbotapi
 	return tgbotapi.APIResponse{}, nil
 }
 
+func getSendMessageFunc(bot *dummyBot, id int64, text string) conversation.SpecialMessageFuncType {
+	return func() error {
+		_, err := bot.Send(tgbotapi.NewMessage(id, text))
+		return err
+	}
+}
+
 func TestNewConversation(t *testing.T) {
 	checkErr := func(expected error, actual error) {
 		if (expected == nil) != (actual == nil) || expected != nil && expected.Error() != actual.Error() {
@@ -129,13 +136,13 @@ func TestNewConversation(t *testing.T) {
 		MaxMessageQueue: 1,
 		TimeoutMinutes:  1,
 	}
-	conv, err := conversation.NewConversation(1, nil, nil, config)
+	conv, err := conversation.NewConversation(1, nil, nil, nil, nil, nil, nil, config)
 	checkErr(errors.New("cannot create conversation, bot object should not be nil"), err)
 	if conv != nil {
 		t.Error("conversation should not been created")
 	}
 
-	conv, err = conversation.NewConversation(3, &dummyBot{}, state.NewBotState(state.NewFileState("")), config)
+	conv, err = conversation.NewConversation(3, &dummyBot{}, state.NewBotState(state.NewFileState("")), nil, nil, nil, nil, config)
 	checkErr(nil, err)
 	if conv == nil {
 		t.Error("conversation should be created succesfully")
@@ -145,20 +152,24 @@ func TestNewConversation(t *testing.T) {
 func TestCancelByUser(t *testing.T) {
 	config := conversation.Config{
 		MaxMessageQueue: 1,
+		TimeoutMinutes:  1,
 	}
 	bot := newDummyBot()
-	conv, err := conversation.NewConversation(5, bot, state.NewBotState(state.NewFileState("")), config) //non-active conversation
+	cancelByUserFunc := getSendMessageFunc(bot, 5, "cancel by user")
+	conv, err := conversation.NewConversation(5, bot, state.NewBotState(state.NewFileState("")),
+		nil, nil, cancelByUserFunc, nil, config) //non-active conversation
 	if err != nil || conv == nil {
 		t.Error("conversation should be created succesfully")
 	}
 	if conv.CancelByUser() != nil {
 		t.Error("conversation should be succesfully cancelled")
 	}
-	if len(bot.SentMessages) != 0 {
-		t.Errorf("expected 0 message sent throug bot, got %d", len(bot.SentMessages))
+	if len(bot.SentMessages) != 1 {
+		t.Errorf("expected 1 message sent throug bot, got %d", len(bot.SentMessages))
 	}
 
-	conv, err = conversation.NewConversation(5, bot, state.NewBotState(state.NewFileState("")), config) //active conversation
+	conv, err = conversation.NewConversation(5, bot, state.NewBotState(state.NewFileState("")),
+		nil, nil, cancelByUserFunc, nil, config) //active conversation
 	if err != nil || conv == nil {
 		t.Error("conversation should be created succesfully")
 	}
@@ -169,32 +180,35 @@ func TestCancelByUser(t *testing.T) {
 	if conv.CancelByUser() != nil {
 		t.Error("conversation should be succesfully cancelled")
 	}
-	if len(bot.SentMessages) != 0 {
-		t.Errorf("expected 0 message sent throug bot, got %d", len(bot.SentMessages))
+	if len(bot.SentMessages) != 2 {
+		t.Errorf("expected 2 message sent throug bot, got %d", len(bot.SentMessages))
 	}
 
 	bot.ReplyError = true
-	conv, err = conversation.NewConversation(7, bot, state.NewBotState(state.NewFileState("")), config) //active conversation with broken bot
+	cancelByUserFunc = getSendMessageFunc(bot, 7, "cancel by user")
+	conv, err = conversation.NewConversation(7, bot, state.NewBotState(state.NewFileState("")),
+		nil, nil, cancelByUserFunc, nil, config) //active conversation with broken bot
 	if err != nil {
 		t.Errorf("unexpected error %v", err)
 	}
 	update = tgbotapi.Update{Message: &tgbotapi.Message{Chat: &tgbotapi.Chat{ID: 7}, Text: "Some update"}}
 	conv.PushUpdate(&update) // to activate the conversation
 	err = conv.CancelByUser()
-	if err == nil || err.Error() != fmt.Sprintf("error while sending cancel-by-user message to chat %d: %s", 7, "dummy error") {
+	if err == nil || err.Error() != fmt.Sprintf("error while sending cancel message to chat %d: %s", 7, "dummy error") {
 		t.Errorf("unexpected error %v", err)
 	}
 }
 
 func TestPushUpdate(t *testing.T) {
 	config := conversation.Config{
-		MaxMessageQueue:       1,
-		ToManyMessagesMessage: "too many messages",
+		MaxMessageQueue: 1,
+		TimeoutMinutes:  1,
 	}
 
 	bot := newDummyBot()
-
-	conv, err := conversation.NewConversation(11, bot, state.NewBotState(state.NewFileState("")), config) // active conversation
+	tooManyMessagesFunc := getSendMessageFunc(bot, 11, "too many messages")
+	conv, err := conversation.NewConversation(11, bot, state.NewBotState(state.NewFileState("")),
+		tooManyMessagesFunc, nil, nil, nil, config) // active conversation
 	if err != nil || conv == nil {
 		t.Error("conversation should be created succesfully")
 	}
@@ -223,7 +237,7 @@ func TestPushUpdate(t *testing.T) {
 	if len(bot.SentMessages) != 1 {
 		t.Errorf("expected 1 message sent to bot, got %d", len(bot.SentMessages))
 	}
-	expectedMessage, err := json.Marshal(tgbotapi.NewMessage(11, config.ToManyMessagesMessage))
+	expectedMessage, err := json.Marshal(tgbotapi.NewMessage(11, "too many messages"))
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -239,7 +253,8 @@ func TestPushUpdate(t *testing.T) {
 
 	config.MaxMessageQueue = 2
 
-	conv, err = conversation.NewConversation(12, bot, state.NewBotState(state.NewFileState("")), config)
+	conv, err = conversation.NewConversation(12, bot, state.NewBotState(state.NewFileState("")),
+		tooManyMessagesFunc, nil, nil, nil, config)
 	if err != nil || conv == nil {
 		t.Error("conversation should be created succesfully")
 	}
@@ -269,10 +284,13 @@ func TestPushUpdate(t *testing.T) {
 func TestMaxMessageQueue(t *testing.T) {
 	config := conversation.Config{
 		MaxMessageQueue: 5,
+		TimeoutMinutes:  1,
 	}
 
 	bot := newDummyBot()
-	conv, err := conversation.NewConversation(13, bot, state.NewBotState(state.NewFileState("")), config) //closed conversation
+	tooManyMessagesFunc := getSendMessageFunc(bot, 13, "too many messages")
+	conv, err := conversation.NewConversation(13, bot, state.NewBotState(state.NewFileState("")),
+		tooManyMessagesFunc, nil, nil, nil, config) //closed conversation
 	if err != nil || conv == nil {
 		t.Error("conversation should be created succesfully")
 	}
@@ -285,7 +303,7 @@ func TestMaxMessageQueue(t *testing.T) {
 	if err = conv.PushUpdate(&update); err == nil || err.Error() != fmt.Sprintf("to many open unprocessed messages in the conversation (%v)", nil) {
 		t.Errorf("unexpected error: %v", err)
 	}
-	expectedMessage, err := json.Marshal(tgbotapi.NewMessage(13, config.ToManyMessagesMessage))
+	expectedMessage, err := json.Marshal(tgbotapi.NewMessage(13, "too many messages"))
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -309,7 +327,9 @@ func TestMessageCreation(t *testing.T) {
 		MaxMessageQueue: 1,
 	}
 	bot := newDummyBot()
-	conv, _ := conversation.NewConversation(17, bot, state.NewBotState(state.NewFileState("")), config)
+
+	conv, _ := conversation.NewConversation(17, bot, state.NewBotState(state.NewFileState("")),
+		nil, nil, nil, nil, config)
 	photoConfig = conv.NewPhotoShare("photoID", "Caption")
 	textMessage = conv.NewMessage("some text")
 

@@ -21,13 +21,14 @@ type SendBot interface {
 	Send(msg tgbotapi.Chattable) (tgbotapi.Message, error)
 }
 
-// SpecialMessageFuncType is a function type
+// SpecialMessageFuncType is a function type for dunction that should send messages in a special cases
 type SpecialMessageFuncType func() error
 
-//
+// GlobalKeyboardFuncType is a function type that generates global keyboard for the conversation
+// the keyboard could be used in the conversation
 type GlobalKeyboardFuncType func() interface{}
 
-// NewConversation creates a new conversation struct and starts handler in a separate thread
+// NewConversation creates a new conversation struct and assigns an incremental ID to it
 func NewConversation(
 	chatID int64,
 	bot SendBot,
@@ -47,7 +48,8 @@ func NewConversation(
 		config)
 }
 
-// NewConversationWithID creates a new conversation struct with pre-defined conversation ID. Should be used for starting conversations from a saved state
+// NewConversationWithID creates a new conversation struct with pre-defined conversation ID.
+// Should be used for starting conversations from a saved state
 func NewConversationWithID(
 	converationID, chatID int64,
 	bot SendBot,
@@ -58,7 +60,9 @@ func NewConversationWithID(
 	if bot == nil {
 		return nil, errors.New("cannot create conversation, bot object should not be nil")
 	}
-	currentConversationID = converationID + 1
+	if currentConversationID <= converationID {
+		currentConversationID = converationID + 1
+	}
 	result := &BotConversation{
 		updates: make(chan *tgbotapi.Update, config.MaxMessageQueue),
 
@@ -106,6 +110,8 @@ func GetUpdateChatID(update *tgbotapi.Update) (int64, error) {
 	return 0, errors.New("usupported query type")
 }
 
+// BotConversation struct handlers all conversation-related data
+// and should manage all interactions between a user and a command handler
 type BotConversation struct {
 	updates chan *tgbotapi.Update //channel with incoming messages from a user
 
@@ -127,42 +133,38 @@ type BotConversation struct {
 	mu sync.Mutex // mutex to ensure that conversation will not send any messages after close
 }
 
-// Kill() closes the conversation and sends signal to a handler to finish
-func (c *BotConversation) CancelByBot() error {
+// cancelConversation cancels the conversation and sends special message to the chat
+func (c *BotConversation) cancelConversation(cancelMessage SpecialMessageFuncType) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.canceled {
 		return fmt.Errorf("the conversation with chat %d is already canceled", c.chatID)
 	}
 	c.canceled = true
-	err := c.cancelByBotMessage()
+	err := cancelMessage()
 	if err != nil {
-		return fmt.Errorf("error while sending terminate mesage to chat %d: %v", c.chatID, err)
+		return fmt.Errorf("error while sending cancel message to chat %d: %v", c.chatID, err)
 	}
 	return nil
 }
 
-// CancelByUser tolds conversation object that user switched to another conversation that will be handled by a different conversation object
+// cancelByBot closes the conversation and sends "Cancel by bot message"
+func (c *BotConversation) cancelByBot() error {
+	return c.cancelConversation(c.cancelByBotMessage)
+}
+
+// CancelByUser tolds conversation object that user switched to another conversation
+// that will be handled by a different conversation object
 func (c *BotConversation) CancelByUser() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.canceled {
-		return fmt.Errorf("the conversation with chat %d is already canceled", c.chatID)
-	}
-	c.canceled = true
-	err := c.cancelByUserMessage()
-	if err != nil {
-		logger.Warning("error while sending cancel-by-user message to chat %d: %v", c.chatID, err)
-	}
-	return nil
+	return c.cancelConversation(c.cancelByUserMessage)
 }
 
-// Is canceled indicates that the conversation was canceled by a user
+// IsCanceled indicates that the conversation was canceled by a user
 func (c *BotConversation) IsCanceled() bool {
 	return c.canceled
 }
 
-// PushMessage checks whether a conversation can accept one more message, and forwards message to handler
+// PushUpdate checks whether a conversation can accept one more message, and forwards message to handler
 func (c *BotConversation) PushUpdate(update *tgbotapi.Update) error {
 	chatID, err := GetUpdateChatID(update)
 	if err != nil {
@@ -192,21 +194,22 @@ func (c *BotConversation) GetFirstUpdateFromUser(ctx context.Context) (*tgbotapi
 	}
 }
 
-// ReadMessage waits for the next message from a user, and returns pointer to the message and a flag that indicates that conversation is over
+// GetUpdateFromUser waits for the next message from a user,
+// and returns pointer to the message and a flag that indicates that conversation is over
 func (c *BotConversation) GetUpdateFromUser(ctx context.Context) (*tgbotapi.Update, bool) {
 	select {
 	case update := <-c.updates:
 		return update, false
 	case <-ctx.Done():
 		if !c.canceled {
-			err := c.CancelByBot()
+			err := c.cancelByBot()
 			if err != nil {
 				logger.Error(err.Error())
 			}
 		}
 		return nil, true
 	case <-time.After(time.Duration(c.timeoutMinutes) * time.Minute):
-		err := c.CancelByBot()
+		err := c.cancelByBot()
 		if err != nil {
 			logger.Error(err.Error())
 		}
@@ -224,7 +227,8 @@ func (c *BotConversation) ConversationID() int64 {
 	return c.conversationID
 }
 
-// Send message using the Bot
+// SendGeneralMessage sends a general tgbotapi message using the Bot
+// it returns messageID of the sent message end error if occured
 func (c *BotConversation) SendGeneralMessage(msg tgbotapi.Chattable) (int, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -309,6 +313,7 @@ func (c *BotConversation) EditMessageTextAndInlineMarkup(messageID int, text str
 	return err
 }
 
+// AnswerButton answer callback query
 func (c *BotConversation) AnswerButton(callbackQueryID string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -320,6 +325,7 @@ func (c *BotConversation) AnswerButton(callbackQueryID string) error {
 	return err
 }
 
+// GlobalKeyboard returns global keyboard struct generated for the chat
 func (c *BotConversation) GlobalKeyboard() interface{} {
 	return c.globalKeyboardFunc()
 }
