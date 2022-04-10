@@ -26,14 +26,14 @@ func TestGetConversationIDs(t *testing.T) {
 
 	cs := s.GetConversationIDs()
 	sort.Slice(cs, func(i, j int) bool { return cs[i] < cs[j] })
-	if !reflect.DeepEqual(cs, []int64{11, 12, 13}) {
+	if !reflect.DeepEqual(cs, []int64{12, 13}) {
 		t.Errorf("Expected conversations [11, 12, 13], got %v", cs)
 	}
 
 	s.RemoveConverastionState(12)
 	cs = s.GetConversationIDs()
 	sort.Slice(cs, func(i, j int) bool { return cs[i] < cs[j] })
-	if !reflect.DeepEqual(cs, []int64{11, 13}) {
+	if !reflect.DeepEqual(cs, []int64{13}) {
 		t.Errorf("Expected conversations [11, 13], got %v", cs)
 	}
 }
@@ -77,7 +77,7 @@ func TestGetConversatonFirstUpdate(t *testing.T) {
 	}
 }
 
-func TestGetConversationStepAnddata(t *testing.T) {
+func TestGetConversationStepAndData(t *testing.T) {
 	s := state.NewBotState(state.NewFileState(""))
 	if s == nil {
 		t.Error("cannot create state object")

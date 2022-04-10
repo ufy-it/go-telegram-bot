@@ -77,6 +77,10 @@ func (mc *mockConversation) EditMessageTextAndInlineMarkup(messageID int, text s
 	return nil
 }
 
+func (mc *mockConversation) GlobalKeyboard() interface{} {
+	return nil
+}
+
 func TestOneStepCreator(t *testing.T) {
 	var step handlers.OneStepCommandHandlerType = func(ctx context.Context, conversation readers.BotConversation) error {
 		return errors.New("Some error")
