@@ -5,7 +5,7 @@ This is a framework wrapper over "github.com/Syfaro/telegram-bot-api" that allow
 The framework handles conversations with multiple users at the same time, each message will be handled by a goroutine dedicated to a particular user.
 
 All you need is to write handlers for initial commands. A handler can manage multistep conversations. 
-The framework continuously saves states of each conversation into a file, so the conversation could be recovered in case of a reboot.
+The framework continuously saves states of each conversation, so the conversation could be recovered in case of a reboot.
 
 The code for handling a conversation could be written in a "sync" way. On each call of `GetUpdateFromUser()` the execution will wait for a user to enter new data: write a message, press a button, send an attachment.
 
@@ -31,8 +31,8 @@ type Config struct {
 	AllowBotUsers          bool   // flag that indicates whether conversation with bot users allowed
 	WebHookExternalURL     string // "https://www.google.com:8443/"+bot.Token
 	WebHookInternalURL     string // "0.0.0.0:8443"
-	CertFile               string // "cert.pem"
-	KeyFile                string // "key.pem"
+	CertFile               string // "cert.pem" can be empty for http connection
+	KeyFile                string // "key.pem" can be empty for http connection
 }
 ```
 
@@ -40,7 +40,7 @@ type Config struct {
 * `Debug` - boolean flag to indicate whether the bot should be run in debug mode
 * `WebHook` - boolean flag to indicate whether the bot should be run as WebHook, or pulling. Read more about modes here: https://go-telegram-bot-api.dev/
 * `UpdateTimeout` - timeout for reading updates in polling mode
-* `StateIO` - object that saves state (in JSON) for all ongoing conversations
+* `StateIO` - object that saves or loads state (in JSON) for all ongoing conversations
 * `AllowBotUsers` - boolean flag that allows bot to answer other bots, otherwise it will ignore
 * `WebHookExternalURL`, `WebHookInternalURL`, `CertFile`, `KeyFile` - configuration parameters for the web hook mode
 * `Jobs` - list of jobs to run
@@ -51,21 +51,31 @@ Conversation dispatcher should be configured with the following parameters:
 ```go
 // Config contains configuration parameters for a new dispatcher
 type Config struct {
-	MaxOpenConversations           int                 // the maximum number of open conversations
-	SingleMessageTrySendInterval   int                 // interval between several tries of send single message to a user
-	ConversationConfig             conversation.Config // configuration for a conversation
-	CancelCommand                  string              // the command that a user can use to cancel any conversation
-	ToManyOpenConversationsMessage string              // message to send to a user if a conversation cannot be started
-	Handlers        			   *handlers.CommandHandlers // list of handlers for command handling
+	MaxOpenConversations         int                       // the maximum number of open conversations
+	SingleMessageTrySendInterval int                       // interval between several tries of send single message to a user
+	ConversationConfig           conversation.Config       // configuration for a conversation
+	Handlers                     *handlers.CommandHandlers // list of handlers for command handling
+	GlobalHandlers               []handlers.CommandHandler // list of handlers that can be started at any point of conversation
+	GlobalMessageFunc            GlobalMessageFuncType     // Function that provides global messages that should be send to a user in special cases
+	GloabalKeyboardFunc          GlobalKeyboardFuncType    // Function that provides global keyboard that would be attached to each global message
 }
 ```
 
 * `MaxOpenConversations` - the maximum number of open conversations, the dispatcher will refuse messages from new users if it is already running `MaxOpenConversations` conversations
 * `SingleMessageTrySendInterval` - interval between tries of sending single message to a user with `SendSingleMessage` method
-* `CancelCommand` - command that allows user to cancel any ongoing conversation (i.e. `/cancel`)
-* `ToManyOpenConversationsMessage` - text that will be send to a user that tries to start a new conversation when the limit is already reached. 
 * `ConversationConfig` - config for a conversation object. Is described in detail below
 * `Handlers` - list of command handlers, the only code that should be written by the framework user
+* `GlobalHandlers` - list of command handlers, that can be started at any time, even if previouse conversation was not ended
+* `GlobalMessageFunc` - function that generates common message for a user. Currently bot supports 6 common messages:
+1. Message in case of error in a handler
+2. Message in case of too many open conversation
+3. Message in case of too many unprocessed updates from a user
+4. Message when conversation was closed by the bot
+5. Message when conversation was closed becouse user switched to another global handler
+6. Message when conversation was fiished normally
+Each global message could be generated for a specific user, so you can add multy-language support. If the function returns an empty string, the correspondend message will not be shown.
+* `GloabalKeyboardFunc` - function that generates keyboard that will be attached to each global message
+
 
 Conversation object should be configured with the following parameters:
 
@@ -74,25 +84,19 @@ Conversation object should be configured with the following parameters:
 type Config struct {
 	MaxMessageQueue int                       // the maximum size of message queue for a conversation
 	TimeoutMinutes  int                       // timeout for a user's input
-
-	CloseByBotMessage     string // message to send to a user if the conversation is closed from the bot side
-	CloseByUserMessage    string // message to send to a user if they decided to close the conversation
-	ToManyMessagesMessage string // message to send to a user in case to too many unprocessed messages
 }
+
 ```
 
 * `MaxMessageQueue` - the maximum number of unprocessed messages from a user that conversation queue can keep. All new messages will be descarded if the queue is already full
 * `TimeoutMinutes` - for how long the bot will wait for a user's input. After the timeout a conversation will e closed by the bot.
-* `CloseByBotMessage` - text message that will be send to a user if the conversation is closed by the bot
-* `CloseByUserMessage` - a confirmation text message to send to a user if they closed the conversation
-* `ToManyMessagesMessage` - text message that will be send to a user as a reply on it's action that is descard due to the full message queue
 
 
 ## Development
 ### Architecture 
 The bot runs conversations with multiple users in parallel (in different threads).
-The `Dispatcher` object receives a new updates from Telegram and forwards it to a particular conversation. If there is no ongoing conversation with the user, the `Dispatcher` will create a new conversation.
-After the conversation is over, or after some time of user inactivity, the `Dispatcher` closes the conversation.
+The `Dispatcher` object receives a new updates from Telegram and forwards it to a particular conversation. If there is no ongoing conversation with the user or message triggers global handler, the `Dispatcher` will create a new conversation.
+After the conversation is over, or a user switched to another conversation, or after some time of the user's inactivity, the `Dispatcher` closes the conversation.
 There is a limit on the number of conversations that can be run in parallel and a limit on the message queue for a conversation. All messages that exceeded the limit will be ignored by the bot. 
 Each conversation starts with a top-level handler. A handler may contain a number of steps, and each step, as a result, might navigate to any other step (or to the conversation end). Each step can request an information from a user and wait for it.
 ### Adding a new handler
@@ -110,7 +114,6 @@ var MyCustomCreator1 = func(ctx context.Context, conversation readers.BotConvers
 		// ...
 	}
     return NewStatefulHandler(
-		conversation.ChatID(),
 		&userData,
 		[]ConversationStep{
             // ... multiple steps
@@ -161,19 +164,67 @@ var DefaultHandlerCreator = handlers.OneStepHandlerCreator(
 	return err
 })
 ```
-#### 2. Add command to `allHandlerCreators` list that should be passed to Dispatcher 
+#### 2. Create list of conversation handlers that should be passed to Dispatcher
 ```go
 var AllHandlerCreators = h.CommandHandlers{
 	Default: DefaultHandlerCreator, // this handler is a fallback if the command entered by a user does not match any from the List
 	List: []h.CommandHandler{
-		{regexp.MustCompile("/command1"), MyCustomCreator1},
-		{regexp.MustCompile("/command2"), MyCustomCreator2},
+		{
+			CommandSelector: handlers.RegExpCommandSelector("/command1"),
+			HandlerCreator:  MyCustomCreator1,
+		},
+		{
+			CommandSelector: handlers.RegExpCommandSelector("/command2"),
+			HandlerCreator:  MyCustomCreator2,
+		},
 	},
-	UserErrorMessage: "Error occured during the execution",
 }
 ```
 
-#### 3. Run the bot from your code
+#### 3. Create list of `Global Handlers` that will terminate an ongoing conversation and start a new one
+```go
+var MyGlobalHandlers = []h.CommandHandler{
+		{
+			CommandSelector: handlers.RegExpCommandSelector("/cancel"),  // for example, /cancel command allows a user to terminate any convrsation
+			HandlerCreator:  handlers.OneStepHandlerCreator(
+				func(ctx context.Context, conversation readers.BotConversation) error {
+				_, err = conversation.SendText("You terminated the conversation")
+				return err
+			}),
+		},
+	},
+}
+```
+
+#### 4. Create function that returns technical messages
+```go
+var TechnicalMessagesFunction = func(chatID int64, messageID dispatcher.MessageIDType) string {
+	// in the example we ignore chatID, but you can use it to show different messages to different users
+	// for example, you can orginize multy-language support
+		switch messageID {
+		case dispatcher.TooManyMessages:
+			return "Bot recieved too many messages from you, it will skip all new messages until process the existing"
+		case dispatcher.ConversationClosedByBot:
+			return "Bot closed the conversation with you"
+		case dispatcher.ConversationEnded: // in case of normal ending, bot will not send any additional message
+			return ""
+		case dispatcher.UserError:
+			return "There was an error during the conversation"
+		case dispatcher.ConversationClosedByUser:
+			return "You finished the conversation with the bot"
+		}
+		return ""
+	}
+```
+
+#### 5. Create function that returns global keyboard that will be attached to each technical message
+```go
+var MyGloabalKeyboard = func(chatID int64) dispatcher.GlobalKeyboardType {
+	return dispatcher.RemoveKeyboard() // remove keyboard if it was left by any conversation
+}
+```
+
+#### 6. Run the bot from your code
 ```go
 err = bot.RunBot(
 	context.Background(),
@@ -184,24 +235,20 @@ err = bot.RunBot(
 		Dispatcher: dispatcher.Config{
 			MaxOpenConversations:           1000,
 			SingleMessageTrySendInterval:   10,
-			CancelCommand:                  "/cancel",
-			ToManyOpenConversationsMessage: "Bot is ovverloaded. Try to send your request later",
 			ConversationConfig: conversation.Config{
 				MaxMessageQueue:       100,
 				TimeoutMinutes:        15,
-				CloseByBotMessage:     "The bot had to abort the conversation",
-				CloseByUserMessage:    "You canceled the conversation with the bot",
-				ToManyMessagesMessage: "You sent too many messages to the bot, wait for proccessing. All new messages will be discarded for now",
 			},
 			Handlers:            &AllHandlerCreators,
+			GlobalHandlers:      MyGlobalHandlers,
+			GlobalMessageFunc:   TechnicalMessagesFunction,
+			GloabalKeyboardFunc: MyGloabalKeyboard,
 		},
 		Jobs:          make([]jobs.JobDescription, 0), // empty list of jobs
-		UpdateTimeout: 60, // 
+		UpdateTimeout: 60,
 		StateIO:       state.NewFileState("botstate.json"),
 		AllowBotUsers: false,
 	})
 ```
 
 ### TO DO
-* Add multy-language support in technical messages
-

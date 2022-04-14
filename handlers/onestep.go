@@ -13,7 +13,6 @@ type OneStepCommandHandlerType func(ctx context.Context, conversation readers.Bo
 func OneStepHandlerCreator(handler OneStepCommandHandlerType) HandlerCreatorType {
 	return func(ctx context.Context, conversation readers.BotConversation) Handler {
 		return NewStatelessHandler(
-			conversation.ConversationID(),
 			[]ConversationStep{
 				{
 					Action: func() (StepResult, error) {

@@ -87,7 +87,7 @@ func (d *Dispatcher) handleConversation(ctx context.Context, conv *conversation.
 			handler = d.commandHandlers.Default(context.WithValue(ctx, handlers.FirstUpdateVariable, update), conv) // use default handler if there is no suitable
 		}
 
-		err := handler.Execute(d.state) // execute handler
+		err := handler.Execute(conv.ConversationID(), d.state) // execute handler
 		if err != nil {
 			logger.Error("in conversation with %d got error: %v", conv.ChatID(), err)
 			if !conv.IsCanceled() {
