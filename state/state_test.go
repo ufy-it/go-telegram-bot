@@ -11,29 +11,29 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func TestGetConversations(t *testing.T) {
+func TestGetConversationIDs(t *testing.T) {
 	s := state.NewBotState(state.NewFileState(""))
 	if s == nil {
 		t.Error("cannot create state object")
 	}
-	if len(s.GetConversations()) > 0 {
-		t.Errorf("Expected empty conversation list, got list with %d items", len(s.GetConversations()))
+	if len(s.GetConversationIDs()) > 0 {
+		t.Errorf("Expected empty conversation list, got list with %d items", len(s.GetConversationIDs()))
 	}
 
 	s.GetConversatonFirstUpdate(11)
-	s.StartConversationWithUpdate(12, nil)
+	s.StartConversationWithUpdate(12, 1, nil)
 	s.SaveConversationStepAndData(13, 1, nil)
 
-	cs := s.GetConversations()
+	cs := s.GetConversationIDs()
 	sort.Slice(cs, func(i, j int) bool { return cs[i] < cs[j] })
-	if !reflect.DeepEqual(cs, []int64{11, 12, 13}) {
+	if !reflect.DeepEqual(cs, []int64{12, 13}) {
 		t.Errorf("Expected conversations [11, 12, 13], got %v", cs)
 	}
 
 	s.RemoveConverastionState(12)
-	cs = s.GetConversations()
+	cs = s.GetConversationIDs()
 	sort.Slice(cs, func(i, j int) bool { return cs[i] < cs[j] })
-	if !reflect.DeepEqual(cs, []int64{11, 13}) {
+	if !reflect.DeepEqual(cs, []int64{13}) {
 		t.Errorf("Expected conversations [11, 13], got %v", cs)
 	}
 }
@@ -43,7 +43,7 @@ func TestClose(t *testing.T) {
 	if s == nil {
 		t.Error("cannot create state object")
 	}
-	err := s.StartConversationWithUpdate(1, nil)
+	err := s.StartConversationWithUpdate(1, 1, nil)
 	if err != nil && strings.Contains(err.Error(), "the state is closed for saving") {
 		t.Errorf("Unexpected error %v", err)
 	}
@@ -51,7 +51,7 @@ func TestClose(t *testing.T) {
 	if err != nil {
 		t.Errorf("Unexpected error %v", err)
 	}
-	err = s.StartConversationWithUpdate(2, nil)
+	err = s.StartConversationWithUpdate(2, 1, nil)
 	if err == nil || !strings.Contains(err.Error(), "the state is closed for saving") {
 		t.Errorf("Unexpected error %v", err)
 	}
@@ -70,14 +70,14 @@ func TestGetConversatonFirstUpdate(t *testing.T) {
 	if u != nil {
 		t.Errorf("Expected nil but got value %v", *u)
 	}
-	s.StartConversationWithUpdate(2, &tgbotapi.Update{UpdateID: 555})
+	s.StartConversationWithUpdate(2, 1, &tgbotapi.Update{UpdateID: 555})
 	u = s.GetConversatonFirstUpdate(2)
 	if u == nil || u.UpdateID != 555 {
 		t.Errorf("Unexpected first update %v", u)
 	}
 }
 
-func TestGetConversationStepAnddata(t *testing.T) {
+func TestGetConversationStepAndData(t *testing.T) {
 	s := state.NewBotState(state.NewFileState(""))
 	if s == nil {
 		t.Error("cannot create state object")

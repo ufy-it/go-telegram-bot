@@ -20,11 +20,17 @@ func MessageHandlerCreator(message string) HandlerCreatorType {
 // ReplyMessageHandlerCreator returns handler that replies to user's message with a text message
 func ReplyMessageHandlerCreator(message string) HandlerCreatorType {
 	return OneStepHandlerCreator(func(ctx context.Context, conversation readers.BotConversation) error {
-		firstMessage, ok := ctx.Value(FirstMessageVariable).(*tgbotapi.Message)
+		firstUpdate, ok := ctx.Value(FirstUpdateVariable).(*tgbotapi.Update)
 		if !ok {
-			return errors.New("expected first message in the context")
+			return errors.New("expected first update in the context")
 		}
-		_, err := conversation.ReplyWithText(message, firstMessage.MessageID)
+
+		var err error
+		if firstUpdate.Message != nil {
+			_, err = conversation.ReplyWithText(message, firstUpdate.Message.MessageID)
+		} else {
+			_, err = conversation.SendText(message)
+		}
 		return err
 	})
 }

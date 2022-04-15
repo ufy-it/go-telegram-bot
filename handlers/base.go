@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/ufy-it/go-telegram-bot/handlers/readers"
 	"github.com/ufy-it/go-telegram-bot/logger"
 	"github.com/ufy-it/go-telegram-bot/state"
@@ -15,30 +15,31 @@ import (
 type HandlerContextVariables string
 
 const (
-	FirstMessageVariable HandlerContextVariables = "first_message"
+	FirstUpdateVariable HandlerContextVariables = "first_update"
 )
 
 // Handler is an interface for a conversation handler
 type Handler interface {
-	Execute(bState state.BotState) error
+	Execute(conversationID int64, bState state.BotState) error
 }
 
 // HandlerCreatorType is a type of a functor that can create a handler for a conversation
 type HandlerCreatorType func(ctx context.Context, conversation readers.BotConversation) Handler
 
+// CommandSelectorType is a type of functor that should tell whether the handler matches the command
+type CommandSelectorType func(firstUpdate *tgbotapi.Update) bool
+
 // CommandHandler is a struct that contains regexp to determine start command for the handler and function-creator to build the handler
 type CommandHandler struct {
-	CommandRe      *regexp.Regexp     // regular expression that specifies the command
-	HandlerCreator HandlerCreatorType // function to create a handler for the command
+	CommandSelector CommandSelectorType // selector for the command
+	HandlerCreator  HandlerCreatorType  // function to create a handler for the command
 }
 
 // CommandHandlers is a structure that contains list of command handlers
 // and default handler that processes commands that has-not been mutched by any of command-handlers
 type CommandHandlers struct {
-	Default          HandlerCreatorType // Default handler will handle any command that does
-	Image            HandlerCreatorType // Handler for the image input
-	List             []CommandHandler   // List of command handlers
-	UserErrorMessage string             // Message to display to user in case of error in a handler
+	Default HandlerCreatorType // Default handler will handle any command that does
+	List    []CommandHandler   // List of command handlers
 }
 
 // StepResultAction is a type for a handler's step result
@@ -78,7 +79,6 @@ type userDataWriter func(data interface{}) error
 
 // standardHandler is a struct that represents a conversation handler
 type standardHandler struct {
-	ChatID      int64              // chat identifier for the conversation
 	Steps       []ConversationStep // conversation steps
 	GetUserData userDataReader     // function to get user data for serialization
 	SetUserData userDataWriter     // function to set user-data in case of resumed conversation
@@ -86,9 +86,8 @@ type standardHandler struct {
 
 // NewStatefulHandler generates a handler for chatID with non-nil userData and steps
 // userData should be a pointer to a json-serializible struct
-func NewStatefulHandler(chatID int64, userData interface{}, steps []ConversationStep) Handler {
+func NewStatefulHandler(userData interface{}, steps []ConversationStep) Handler {
 	return &standardHandler{
-		ChatID:      chatID,
 		Steps:       steps,
 		GetUserData: func() interface{} { return userData },
 		SetUserData: func(data interface{}) error {
@@ -102,34 +101,31 @@ func NewStatefulHandler(chatID int64, userData interface{}, steps []Conversation
 }
 
 // NewStatelessHandler generates a handler for chatID with no state data (other than the index of current step)
-func NewStatelessHandler(chatID int64, steps []ConversationStep) Handler {
+func NewStatelessHandler(steps []ConversationStep) Handler {
 	return &standardHandler{
-		ChatID:      chatID,
 		Steps:       steps,
 		GetUserData: func() interface{} { return nil },
-		SetUserData: func(data interface{}) error {
-			return nil
-		},
+		SetUserData: func(data interface{}) error { return nil },
 	}
 }
 
 // Execute processes the conversation between a user and a handler
-func (h *standardHandler) Execute(bState state.BotState) error {
+func (h *standardHandler) Execute(conversationID int64, bState state.BotState) error {
 	if len(h.Steps) == 0 {
 		return nil
 	}
 	if bState == nil {
-		return errors.New("Handler started with nil bot state")
+		return errors.New("handler started with nil bot state")
 	}
-	step, data := bState.GetConversationStepAndData(h.ChatID)
+	step, data := bState.GetConversationStepAndData(conversationID)
 	if step < 0 || step >= len(h.Steps) {
 		return fmt.Errorf("step index from state (%d) is out of range", step)
 	}
 	if h.GetUserData == nil {
-		return errors.New("Handler is incomplete, GetUserData is nil")
+		return errors.New("handler is incomplete, GetUserData is nil")
 	}
 	if h.SetUserData == nil {
-		return errors.New("Handler is incomplete, SetUserData is nil")
+		return errors.New("handler is incomplete, SetUserData is nil")
 	}
 	resumed := false
 	if data != nil {
@@ -141,7 +137,7 @@ func (h *standardHandler) Execute(bState state.BotState) error {
 	}
 	for {
 		if !resumed {
-			err := bState.SaveConversationStepAndData(h.ChatID, step, h.GetUserData())
+			err := bState.SaveConversationStepAndData(conversationID, step, h.GetUserData())
 			if err != nil {
 				logger.Error("error saving conversation state: %v", err)
 			}

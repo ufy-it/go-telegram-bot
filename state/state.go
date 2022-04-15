@@ -15,11 +15,11 @@ type ConversationState struct {
 	FirstUpdate *tgbotapi.Update `json:"first_update"` // initial message for a handler
 	Step        int              `json:"step"`         // the index of the stap that should be processed
 	Data        interface{}      `json:"data"`         // user-data
+	ChatID      int64            `json:"chat_id"`      // chat_id of the conversation
 }
 
 type botState struct {
 	ConversationStates map[int64]*ConversationState `json:"conversations"` // map of all active conversation states
-	filename           string                       // file to store state on disk
 	closed             bool                         // flag that indicates that state is closed and should not do any saves
 	mu                 sync.RWMutex                 // mutex to synchronize read-write operations to the map of conversation states
 	muIO               sync.Mutex                   // mutex to synchronize saving to a IO
@@ -28,16 +28,17 @@ type botState struct {
 
 // BotState is an interface for object that records current state of all ongoing conversations
 type BotState interface {
-	RemoveConverastionState(chatID int64) error // removes record about a current conversation. Should be called after a high-level handler is done
-	LoadState() error                           // Load state from a file
-	Close() error                               // Forbid furter savings
+	RemoveConverastionState(conversationID int64) error // removes record about a current conversation. Should be called after a high-level handler is done
+	LoadState() error                                   // Load state from a file
+	Close() error                                       // Forbid furter savings
 
-	GetConversations() []int64                                  // get list of conversations
-	GetConversatonFirstUpdate(chatID int64) *tgbotapi.Update    // get first update of the conversation
-	GetConversationStepAndData(chatID int64) (int, interface{}) // get data and state of the conversation
+	GetConversationIDs() []int64                                        // get list of conversationsIDs, if several IDs have the same ChatID, only the latest conversationID will be listed
+	GetConversatonFirstUpdate(conversationID int64) *tgbotapi.Update    // get first update of the conversation
+	GetConversationStepAndData(conversationID int64) (int, interface{}) // get data and state of the conversation
+	GetConversationChatID(conversationID int64) int64                   // get ChatID of the conversation
 
-	StartConversationWithUpdate(chatID int64, firstUpdate *tgbotapi.Update) error // create state for a conversation with first update
-	SaveConversationStepAndData(chatID int64, step int, data interface{}) error   // save new conversation step and data, save all states to a file
+	StartConversationWithUpdate(conversationID int64, chatID int64, firstUpdate *tgbotapi.Update) error // create state for a conversation with first update
+	SaveConversationStepAndData(conversationID int64, step int, data interface{}) error                 // save new conversation step and data, save all states to a file
 }
 
 // NewBotState method constructs a new BotState object
@@ -49,12 +50,12 @@ func NewBotState(io StateIO) BotState {
 	}
 }
 
-func (bs *botState) RemoveConverastionState(chatID int64) error {
+func (bs *botState) RemoveConverastionState(converationID int64) error {
 	bs.mu.Lock()
-	if _, ok := bs.ConversationStates[chatID]; !ok {
-		return fmt.Errorf("no record about conversation with %d in the BotState", chatID)
+	if _, ok := bs.ConversationStates[converationID]; !ok {
+		return fmt.Errorf("no record about conversation with %d in the BotState", converationID)
 	}
-	delete(bs.ConversationStates, chatID)
+	delete(bs.ConversationStates, converationID)
 	bs.mu.Unlock()
 	return bs.saveState()
 }
@@ -107,9 +108,37 @@ func (bs *botState) saveState() error {
 	return nil
 }
 
-func (bs *botState) GetConversations() []int64 {
+func (bs *botState) GetConversationIDs() []int64 {
+	min := func(a, b int64) int64 {
+		if a < b {
+			return a
+		}
+		return b
+	}
+	max := func(a, b int64) int64 {
+		if a > b {
+			return a
+		}
+		return b
+	}
+
 	bs.mu.RLock()
 	defer bs.mu.RUnlock()
+
+	chatToConversationID := make(map[int64]int64)
+	statesToDelete := make([]int64, 0)
+	for conversationID, state := range bs.ConversationStates {
+		if prevID, ok := chatToConversationID[state.ChatID]; ok {
+			statesToDelete = append(statesToDelete, min(prevID, conversationID))
+			chatToConversationID[state.ChatID] = max(prevID, conversationID)
+		} else {
+			chatToConversationID[state.ChatID] = conversationID
+		}
+	}
+	for _, id := range statesToDelete {
+		delete(bs.ConversationStates, id)
+	}
+
 	keys := make([]int64, len(bs.ConversationStates))
 	i := 0
 	for k := range bs.ConversationStates {
@@ -119,46 +148,52 @@ func (bs *botState) GetConversations() []int64 {
 	return keys
 }
 
-func (bs *botState) getConversatonState(chatID int64) *ConversationState {
+func (bs *botState) getConversatonState(converationID int64) *ConversationState {
 	bs.mu.RLock()
-	if state, ok := bs.ConversationStates[chatID]; ok {
+	if state, ok := bs.ConversationStates[converationID]; ok {
 		defer bs.mu.RUnlock()
 		return state
 	}
 	bs.mu.RUnlock()
 	bs.mu.Lock()
 	defer bs.mu.Unlock()
-	if state, ok := bs.ConversationStates[chatID]; ok { //now do the same thing under write Lock
+	if state, ok := bs.ConversationStates[converationID]; ok { //now do the same thing under write Lock
 		return state
 	}
-	bs.ConversationStates[chatID] = &ConversationState{
+	bs.ConversationStates[converationID] = &ConversationState{
 		FirstUpdate: nil,
 		Step:        0,
+		ChatID:      0,
 		Data:        nil,
 	}
-	state := bs.ConversationStates[chatID]
+	state := bs.ConversationStates[converationID]
 	return state
 }
 
-func (bs *botState) GetConversatonFirstUpdate(chatID int64) *tgbotapi.Update {
-	return bs.getConversatonState(chatID).FirstUpdate
+func (bs *botState) GetConversatonFirstUpdate(conversationID int64) *tgbotapi.Update {
+	return bs.getConversatonState(conversationID).FirstUpdate
 }
 
-func (bs *botState) GetConversationStepAndData(chatID int64) (int, interface{}) {
-	state := bs.getConversatonState(chatID)
+func (bs *botState) GetConversationStepAndData(converationID int64) (int, interface{}) {
+	state := bs.getConversatonState(converationID)
 	return state.Step, state.Data
 }
 
-func (bs *botState) StartConversationWithUpdate(chatID int64, firstUpdate *tgbotapi.Update) error {
-	bs.getConversatonState(chatID).FirstUpdate = firstUpdate
+func (bs *botState) StartConversationWithUpdate(conversationID, chatID int64, firstUpdate *tgbotapi.Update) error {
+	bs.getConversatonState(conversationID).FirstUpdate = firstUpdate
+	bs.getConversatonState(conversationID).ChatID = chatID
 	return bs.saveState()
 }
 
-func (bs *botState) SaveConversationStepAndData(chatID int64, step int, data interface{}) error {
-	state := bs.getConversatonState(chatID)
+func (bs *botState) SaveConversationStepAndData(conversationID int64, step int, data interface{}) error {
+	state := bs.getConversatonState(conversationID)
 	bs.muIO.Lock() //forbid saving while updating
 	state.Data = data
 	state.Step = step
 	bs.muIO.Unlock()
 	return bs.saveState()
+}
+
+func (bs *botState) GetConversationChatID(conversationID int64) int64 {
+	return bs.getConversatonState(conversationID).ChatID
 }

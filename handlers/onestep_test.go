@@ -22,6 +22,10 @@ func (mc *mockConversation) ChatID() int64 {
 	return 0
 }
 
+func (mc *mockConversation) ConversationID() int64 {
+	return 0
+}
+
 func (mc *mockConversation) GetUpdateFromUser(ctx context.Context) (*tgbotapi.Update, bool) {
 	return nil, false
 }
@@ -73,6 +77,10 @@ func (mc *mockConversation) EditMessageTextAndInlineMarkup(messageID int, text s
 	return nil
 }
 
+func (mc *mockConversation) GlobalKeyboard() interface{} {
+	return nil
+}
+
 func TestOneStepCreator(t *testing.T) {
 	var step handlers.OneStepCommandHandlerType = func(ctx context.Context, conversation readers.BotConversation) error {
 		return errors.New("Some error")
@@ -85,7 +93,7 @@ func TestOneStepCreator(t *testing.T) {
 
 	handlerStruct := handler(context.Background(), &mockConversation{})
 
-	err := handlerStruct.Execute(state.NewBotState(state.NewFileState("")))
+	err := handlerStruct.Execute(0, state.NewBotState(state.NewFileState("")))
 
 	if err == nil || err.Error() != "Some error" {
 		t.Errorf("Unexpacted error: %v", err)

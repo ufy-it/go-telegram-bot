@@ -21,7 +21,7 @@ func TestMessageCreator(t *testing.T) {
 	conversation := mockConversation{}
 	handlerStruct := handler(context.Background(), &conversation)
 
-	err := handlerStruct.Execute(state.NewBotState(state.NewFileState("")))
+	err := handlerStruct.Execute(0, state.NewBotState(state.NewFileState("")))
 
 	if err != nil {
 		t.Errorf("Unexpacted error: %v", err)
@@ -41,9 +41,9 @@ func TestReplyMessageCreator(t *testing.T) {
 	}
 
 	conversation := mockConversation{}
-	handlerStruct := handler(context.WithValue(context.Background(), handlers.FirstMessageVariable, &tgbotapi.Message{MessageID: 133}), &conversation)
+	handlerStruct := handler(context.WithValue(context.Background(), handlers.FirstUpdateVariable, &tgbotapi.Update{Message: &tgbotapi.Message{MessageID: 133}}), &conversation)
 
-	err := handlerStruct.Execute(state.NewBotState(state.NewFileState("")))
+	err := handlerStruct.Execute(0, state.NewBotState(state.NewFileState("")))
 
 	if err != nil {
 		t.Errorf("Unexpacted error: %v", err)
