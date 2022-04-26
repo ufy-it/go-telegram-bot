@@ -176,7 +176,7 @@ func MultySelectItemFromList(
 	indexRe := regexp.MustCompile(`\d+`)
 	prevPageButton := buttons.NewButton(prevPageText, prevPageButtonData)
 	nextPageButton := buttons.NewButton(nextPageText, nextPageButtonData)
-	msgID, err := conversation.SendText(text)
+	msgID, err := conversation.SendGeneralMessageWithKeyboardRemoveOnExit(conversation.NewMessage(text))
 	if err != nil {
 		return UserSelectedListReply{}, err
 	}

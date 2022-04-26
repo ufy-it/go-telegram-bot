@@ -42,6 +42,10 @@ func (mc *mockConversation) SendGeneralMessage(msg tgbotapi.Chattable) (int, err
 	return 0, nil
 }
 
+func (mc *mockConversation) SendGeneralMessageWithKeyboardRemoveOnExit(msg tgbotapi.Chattable) (int, error) {
+	return 0, nil
+}
+
 func (mc *mockConversation) SendText(text string) (int, error) {
 	mc.sentText = text
 	return 0, nil

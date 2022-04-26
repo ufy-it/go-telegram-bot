@@ -27,7 +27,7 @@ func AskGenericMessageReplyWithValidation(ctx context.Context,
 	repeatOriginalOnIncorrect bool) (*tgbotapi.Update, bool, error) {
 	sendOriginalMessage := func() (int, error) {
 		if message != nil { //do nothing on empty message
-			msgID, err := conversation.SendGeneralMessage(message)
+			msgID, err := conversation.SendGeneralMessageWithKeyboardRemoveOnExit(message)
 			if err != nil {
 				return -1, err
 			}

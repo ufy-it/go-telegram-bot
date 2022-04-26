@@ -17,11 +17,12 @@ type BotConversation interface {
 	NewPhotoShare(photoFileID string, caption string) tgbotapi.PhotoConfig // create a message with a Photo (should be uploaded to the telegram an caption)
 	NewMessage(text string) tgbotapi.MessageConfig                         // Create a new Text message with HTML parsing
 
-	SendGeneralMessage(msg tgbotapi.Chattable) (int, error) // send general message to a user. This method is not safe, so use it as less as possible
-	SendText(text string) (int, error)                      // send text with HTML parsing
-	ReplyWithText(text string, messageID int) (int, error)  // reply with text message to the existing message
-	AnswerButton(callbackQueryID string) error              // record answer to an inline button press
-	DeleteMessage(messageID int) error                      // delete an existing message
+	SendGeneralMessage(msg tgbotapi.Chattable) (int, error)                         // send general message to a user. This method is not safe, so use it as less as possible
+	SendGeneralMessageWithKeyboardRemoveOnExit(msg tgbotapi.Chattable) (int, error) // send general message and ask conversation object to remove reply markup from this message in case of cancel event. the remove will be applied only to the latest message
+	SendText(text string) (int, error)                                              // send text with HTML parsing
+	ReplyWithText(text string, messageID int) (int, error)                          // reply with text message to the existing message
+	AnswerButton(callbackQueryID string) error                                      // record answer to an inline button press
+	DeleteMessage(messageID int) error                                              // delete an existing message
 
 	RemoveReplyMarkup(messageID int) error                                                                 // remove reply markup from the existing message
 	EditReplyMarkup(messageID int, markup tgbotapi.InlineKeyboardMarkup) error                             // replace reply markup in the existing message

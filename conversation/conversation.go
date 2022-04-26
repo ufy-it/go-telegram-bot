@@ -81,6 +81,8 @@ func NewConversationWithID(
 
 		canceled: false,
 
+		messageIDForKeyboardRemove: 0,
+
 		mu: sync.Mutex{},
 	}
 
@@ -130,6 +132,8 @@ type BotConversation struct {
 
 	canceled bool // flag that indicates that the conversation was canceled by the user
 
+	messageIDForKeyboardRemove int // id of the message that should be cleared from reply keyboard in case of user or bot cancelled the conversation
+
 	mu sync.Mutex // mutex to ensure that conversation will not send any messages after close
 }
 
@@ -141,6 +145,18 @@ func (c *BotConversation) cancelConversation(cancelMessage SpecialMessageFuncTyp
 		return fmt.Errorf("the conversation with chat %d is already canceled", c.chatID)
 	}
 	c.canceled = true
+	if c.messageIDForKeyboardRemove != 0 {
+		upd := tgbotapi.NewEditMessageReplyMarkup(
+			c.chatID,
+			c.messageIDForKeyboardRemove,
+			tgbotapi.InlineKeyboardMarkup{
+				InlineKeyboard: make([][]tgbotapi.InlineKeyboardButton, 0),
+			})
+		_, err := c.bot.Send(upd)
+		if err != nil {
+			logger.Warning("error removing reply keyboard from message on cancel: %v", err)
+		}
+	}
 	err := cancelMessage()
 	if err != nil {
 		return fmt.Errorf("error while sending cancel message to chat %d: %v", c.chatID, err)
@@ -238,6 +254,13 @@ func (c *BotConversation) SendGeneralMessage(msg tgbotapi.Chattable) (int, error
 	// ToDo: check thy we are sending message to the same chatID
 	message, err := c.bot.Send(msg)
 	return message.MessageID, err
+}
+func (c *BotConversation) SendGeneralMessageWithKeyboardRemoveOnExit(msg tgbotapi.Chattable) (id int, err error) {
+	id, err = c.SendGeneralMessage(msg)
+	if err == nil {
+		c.messageIDForKeyboardRemove = id
+	}
+	return
 }
 
 // SendText creates a mesage with HTML parse mode from the input text and sends it through the bot

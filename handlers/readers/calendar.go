@@ -51,7 +51,7 @@ func AskReplyCalendarDate(ctx context.Context, conversation BotConversation,
 	nextPageText string,
 	location *time.Location) (UserTimeAndDataReply, error) {
 	changed := true
-	msgID, err := conversation.SendText(text)
+	msgID, err := conversation.SendGeneralMessageWithKeyboardRemoveOnExit(conversation.NewMessage(text))
 	if err != nil {
 		return UserTimeAndDataReply{}, err
 	}
