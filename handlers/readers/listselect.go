@@ -49,7 +49,7 @@ func SelectItemFromList(
 	startIndex := 0
 	prevPageButton := buttons.NewButton(prevPageText, prevPageButtonData)
 	nextPageButton := buttons.NewButton(nextPageText, nextPageButtonData)
-	msgID, err := conversation.SendText(text)
+	msgID, err := conversation.SendGeneralMessageWithKeyboardRemoveOnExit(conversation.NewMessage(text))
 	if err != nil {
 		return UserTextAndDataReply{}, err
 	}
