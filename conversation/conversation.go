@@ -345,6 +345,9 @@ func (c *BotConversation) AnswerButton(callbackQueryID string) error {
 	}
 	msg := tgbotapi.NewCallback(callbackQueryID, "")
 	_, err := c.bot.Send(msg)
+	if err.Error() == "json: cannot unmarshal bool into Go value of type tgbotapi.Message" { // bug in api
+		err = nil
+	}
 	return err
 }
 

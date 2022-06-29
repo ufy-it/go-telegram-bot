@@ -37,8 +37,8 @@ const (
 	yearHalfPage = 15/2 + 1
 )
 
-// AskReplyCalendarDate asks a user to select date between minDate and maxDate in calendar widget
-func AskReplyCalendarDate(ctx context.Context, conversation BotConversation,
+// AskReplyCalendarDateWithAvailability asks a user to select date between minDate and maxDate in calendar widget
+func AskReplyCalendarDateWithAvailability(ctx context.Context, conversation BotConversation,
 	text string,
 	minDate time.Time,
 	maxDate time.Time,
@@ -49,6 +49,7 @@ func AskReplyCalendarDate(ctx context.Context, conversation BotConversation,
 	weekDays [7]string,
 	prevPageText string,
 	nextPageText string,
+	isDateAvailable func(day time.Time) bool,
 	location *time.Location) (UserTimeAndDataReply, error) {
 	changed := true
 	msgID, err := conversation.SendGeneralMessageWithKeyboardRemoveOnExit(conversation.NewMessage(text))
@@ -189,7 +190,11 @@ func AskReplyCalendarDate(ctx context.Context, conversation BotConversation,
 				lastDay := day.AddDate(0, 1, -1)
 				for ; !day.After(lastDay); day = day.AddDate(0, 0, 1) {
 					if !minDate.After(day) && !day.After(maxDate) {
-						row = append(row, newDayButton(day.Day()))
+						if isDateAvailable(day) {
+							row = append(row, newDayButton(day.Day()))
+						} else {
+							row = append(row, buttons.NewEmptyIgnoreButton())
+						}
 					} else {
 						row = append(row, buttons.NewEmptyIgnoreButton())
 					}
@@ -296,4 +301,110 @@ func AskReplyCalendarDate(ctx context.Context, conversation BotConversation,
 			}
 		}
 	}
+}
+
+func AskReplyCalendarDate(ctx context.Context, conversation BotConversation,
+	text string,
+	minDate time.Time,
+	maxDate time.Time,
+	currentDate time.Time,
+	calendarMode CalendarMode,
+	navigation buttons.ButtonSet,
+	months [12]string,
+	weekDays [7]string,
+	prevPageText string,
+	nextPageText string,
+	location *time.Location) (UserTimeAndDataReply, error) {
+	return AskReplyCalendarDateWithAvailability(
+		ctx,
+		conversation,
+		text,
+		minDate,
+		maxDate,
+		currentDate,
+		calendarMode,
+		navigation,
+		months,
+		weekDays,
+		prevPageText,
+		nextPageText,
+		func(day time.Time) bool { return true },
+		location,
+	)
+}
+
+func AskReplyCalendarDateWithAvailableList(ctx context.Context, conversation BotConversation,
+	text string,
+	minDate time.Time,
+	maxDate time.Time,
+	currentDate time.Time,
+	calendarMode CalendarMode,
+	navigation buttons.ButtonSet,
+	months [12]string,
+	weekDays [7]string,
+	prevPageText string,
+	nextPageText string,
+	availableDates []time.Time,
+	location *time.Location) (UserTimeAndDataReply, error) {
+	availableMap := make(map[string]struct{})
+	for _, date := range availableDates {
+		availableMap[date.Format("2006-01-02")] = struct{}{}
+	}
+	return AskReplyCalendarDateWithAvailability(
+		ctx,
+		conversation,
+		text,
+		minDate,
+		maxDate,
+		currentDate,
+		calendarMode,
+		navigation,
+		months,
+		weekDays,
+		prevPageText,
+		nextPageText,
+		func(day time.Time) bool {
+			_, isAvailable := availableMap[day.Format("2006-01-02")]
+			return isAvailable
+		},
+		location,
+	)
+}
+
+func AskReplyCalendarDateWithUnavailableList(ctx context.Context, conversation BotConversation,
+	text string,
+	minDate time.Time,
+	maxDate time.Time,
+	currentDate time.Time,
+	calendarMode CalendarMode,
+	navigation buttons.ButtonSet,
+	months [12]string,
+	weekDays [7]string,
+	prevPageText string,
+	nextPageText string,
+	unavailableDates []time.Time,
+	location *time.Location) (UserTimeAndDataReply, error) {
+	unavailableMap := make(map[string]struct{})
+	for _, date := range unavailableDates {
+		unavailableMap[date.Format("2006-01-02")] = struct{}{}
+	}
+	return AskReplyCalendarDateWithAvailability(
+		ctx,
+		conversation,
+		text,
+		minDate,
+		maxDate,
+		currentDate,
+		calendarMode,
+		navigation,
+		months,
+		weekDays,
+		prevPageText,
+		nextPageText,
+		func(day time.Time) bool {
+			_, isUnavailable := unavailableMap[day.Format("2006-01-02")]
+			return !isUnavailable
+		},
+		location,
+	)
 }
