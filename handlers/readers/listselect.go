@@ -24,9 +24,18 @@ type UserSelectedListReply struct {
 	Exit  bool
 }
 
+// UserIndexDataReply contains information about selected index (-1 if nothing selected)
+type UserIndexDataReply struct {
+	Index int
+	Data  string
+	Exit  bool
+}
+
 const (
 	prevPageButtonData = "__list_prev_page"
 	nextPageButtonData = "__list_next_page"
+
+	listIndexPrefix = "__list_prefix"
 
 	removeFilterCommand = "/remove_filter"
 )
@@ -151,6 +160,39 @@ func SelectItemFromList(
 			}
 		}
 	}
+}
+
+// SelectIndexFromList asks a user to select one item from the list of strings and returns selected index
+func SelectIndexFromList(
+	ctx context.Context,
+	conversation BotConversation,
+	text string,
+	items []string,
+	pageSize int,
+	navigation buttons.ButtonSet,
+	prevPageText string,
+	nextPageText string,
+	filterText string,
+	removeFilterText string) (UserIndexDataReply, error) {
+	listItems := make([]ListItem, len(items))
+	for i, str := range items {
+		listItems[i].Text = str
+		listItems[i].Data = fmt.Sprintf("%s%d", listIndexPrefix, i)
+	}
+	reply, err := SelectItemFromList(ctx, conversation, text, listItems, pageSize, navigation, prevPageText, nextPageText, filterText, removeFilterText)
+	if err != nil {
+		return UserIndexDataReply{}, err
+	}
+	re := regexp.MustCompile("^" + listIndexPrefix + "\\d+$")
+	result := UserIndexDataReply{
+		Index: -1,
+		Data:  reply.Data,
+		Exit:  reply.Exit,
+	}
+	if re.MatchString(reply.Data) {
+		result.Index, err = strconv.Atoi(reply.Data[len(listIndexPrefix):])
+	}
+	return result, err
 }
 
 // MultySelectItemFromList asks a user to select several items from the list
