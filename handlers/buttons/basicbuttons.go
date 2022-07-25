@@ -28,6 +28,7 @@ func NewButton(text string, data string) Button {
 	}
 }
 
+// NewExternalURLButton creates a Button struct for ButtonURL
 func NewExternalURLButton(text string, url string) Button {
 	return Button{
 		URL:        true,
@@ -42,9 +43,19 @@ func NewIgnoreButton(text string) Button {
 	return NewButton(text, IgnoreButtonData)
 }
 
-// NewEmptyIgnoreButton creates button with empty text and with data that should be ignored
+// NewEmptyIgnoreButton creates a button with empty text and with data that should be ignored
 func NewEmptyIgnoreButton() Button {
 	return NewIgnoreButton(" ")
+}
+
+// NewStaticButton creates a button with uniqueData == Data to enable
+func NewStaticButton(text string, data string) Button {
+	return Button{
+		URL:        false,
+		Text:       text,
+		Data:       data,
+		uniqueData: data,
+	}
 }
 
 // ButtonRow represents a row of buttons

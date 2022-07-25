@@ -67,6 +67,12 @@ func (d *Dispatcher) handleConversation(ctx context.Context, conv *conversation.
 				if err != nil {
 					logger.Error("cannot add conversation to state: %v", err)
 				}
+				if update.CallbackQuery != nil && update.CallbackQuery.ID != "" {
+					err = conv.AnswerButton(update.CallbackQuery.ID)
+					if err != nil {
+						logger.Error("cannot answer button: %v", err)
+					}
+				}
 			}
 		}
 

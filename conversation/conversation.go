@@ -268,6 +268,11 @@ func (c *BotConversation) SendText(text string) (int, error) {
 	return c.SendGeneralMessage(c.NewMessage(text))
 }
 
+//SendTextf creates a mesage with HTML parse mode from the input text and parameters, and sends it through the bot
+func (c *BotConversation) SendTextf(text string, args ...interface{}) (int, error) {
+	return c.SendGeneralMessage(c.NewMessagef(text, args...))
+}
+
 // ReplyWithText replies to an existing message with a simple text message (HTML parse mode)
 func (c *BotConversation) ReplyWithText(text string, msgID int) (int, error) {
 	msg := c.NewMessage(text)
@@ -302,6 +307,11 @@ func (c *BotConversation) NewMessage(text string) tgbotapi.MessageConfig {
 	msg := tgbotapi.NewMessage(c.chatID, text)
 	msg.ParseMode = "HTML"
 	return msg
+}
+
+// NewMessagef creates a new message from text with arguments
+func (c *BotConversation) NewMessagef(text string, args ...interface{}) tgbotapi.MessageConfig {
+	return c.NewMessage(fmt.Sprintf(text, args...))
 }
 
 // NewPhotoShare creates a PhotoConfig for this conversation with HTML parse mode

@@ -3,6 +3,7 @@ package handlers_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/ufy-it/go-telegram-bot/handlers"
@@ -38,6 +39,10 @@ func (mc *mockConversation) NewMessage(text string) tgbotapi.MessageConfig {
 	return tgbotapi.MessageConfig{}
 }
 
+func (mc *mockConversation) NewMessagef(text string, args ...interface{}) tgbotapi.MessageConfig {
+	return tgbotapi.MessageConfig{}
+}
+
 func (mc *mockConversation) SendGeneralMessage(msg tgbotapi.Chattable) (int, error) {
 	return 0, nil
 }
@@ -48,6 +53,11 @@ func (mc *mockConversation) SendGeneralMessageWithKeyboardRemoveOnExit(msg tgbot
 
 func (mc *mockConversation) SendText(text string) (int, error) {
 	mc.sentText = text
+	return 0, nil
+}
+
+func (mc *mockConversation) SendTextf(text string, args ...interface{}) (int, error) {
+	mc.sentText = fmt.Sprintf(text, args...)
 	return 0, nil
 }
 
