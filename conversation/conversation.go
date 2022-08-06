@@ -1,9 +1,12 @@
 package conversation
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"sync"
 	"time"
 
@@ -19,6 +22,8 @@ var currentConversationID int64 = 0 // global conversation ID counter
 type SendBot interface {
 	// Send sends a message through the bot
 	Send(msg tgbotapi.Chattable) (tgbotapi.Message, error)
+	GetFile(file tgbotapi.FileConfig) (tgbotapi.File, error)
+	GetFileDirectURL(fileID string) (string, error)
 }
 
 // SpecialMessageFuncType is a function type for dunction that should send messages in a special cases
@@ -268,7 +273,7 @@ func (c *BotConversation) SendText(text string) (int, error) {
 	return c.SendGeneralMessage(c.NewMessage(text))
 }
 
-//SendTextf creates a mesage with HTML parse mode from the input text and parameters, and sends it through the bot
+// SendTextf creates a mesage with HTML parse mode from the input text and parameters, and sends it through the bot
 func (c *BotConversation) SendTextf(text string, args ...interface{}) (int, error) {
 	return c.SendGeneralMessage(c.NewMessagef(text, args...))
 }
@@ -329,6 +334,17 @@ func (c *BotConversation) NewPhotoShare(photoFileID string, caption string) tgbo
 	return msg
 }
 
+// NewPhotoUpload creates a PhotoConfig for this conversation with HTML parse mode and uploads file from memory
+func (c *BotConversation) NewPhotoUpload(fileData []byte, caption string) tgbotapi.PhotoConfig {
+	msg := tgbotapi.NewPhoto(c.chatID, tgbotapi.FileReader{
+		Name:   "image.png",
+		Reader: bytes.NewReader(fileData),
+	})
+	msg.Caption = caption
+	msg.ParseMode = "HTML"
+	return msg
+}
+
 // EditMessageText changes text of an existing message (ReplyMarkup will be deleted)
 func (c *BotConversation) EditMessageText(messageID int, text string) error {
 	msg := tgbotapi.NewEditMessageText(c.chatID, messageID, text)
@@ -359,6 +375,27 @@ func (c *BotConversation) AnswerButton(callbackQueryID string) error {
 		err = nil
 	}
 	return err
+}
+
+// GetFile downloads file in memory and returns it
+func (c *BotConversation) GetFile(fileID string) ([]byte, error) {
+	url, err := c.bot.GetFileDirectURL(fileID)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	return ioutil.ReadAll(resp.Body)
+}
+
+// GetFile gets file info from Telegram
+func (c *BotConversation) GetFileInfo(fileID string) (tgbotapi.File, error) {
+	return c.bot.GetFile(tgbotapi.FileConfig{
+		FileID: fileID,
+	})
 }
 
 // GlobalKeyboard returns global keyboard struct generated for the chat

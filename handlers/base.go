@@ -18,6 +18,14 @@ const (
 	FirstUpdateVariable HandlerContextVariables = "first_update"
 )
 
+// GetFirstUpdate returns the first update for the conversation from the context
+func GetFirstUpdate(ctx context.Context) (*tgbotapi.Update, error) {
+	if ctx.Value(FirstUpdateVariable) == nil {
+		return nil, errors.New("no first update")
+	}
+	return ctx.Value(FirstUpdateVariable).(*tgbotapi.Update), nil
+}
+
 // Handler is an interface for a conversation handler
 type Handler interface {
 	Execute(conversationID int64, bState state.BotState) error

@@ -35,6 +35,10 @@ func (mc *mockConversation) NewPhotoShare(photoFileID string, caption string) tg
 	return tgbotapi.PhotoConfig{}
 }
 
+func (mc *mockConversation) NewPhotoUpload(fileData []byte, caption string) tgbotapi.PhotoConfig {
+	return tgbotapi.PhotoConfig{}
+}
+
 func (mc *mockConversation) NewMessage(text string) tgbotapi.MessageConfig {
 	return tgbotapi.MessageConfig{}
 }
@@ -93,6 +97,14 @@ func (mc *mockConversation) EditMessageTextAndInlineMarkup(messageID int, text s
 
 func (mc *mockConversation) GlobalKeyboard() interface{} {
 	return nil
+}
+
+func (mc *mockConversation) GetFile(fileID string) ([]byte, error) {
+	return nil, nil
+}
+
+func (mc *mockConversation) GetFileInfo(fileID string) (tgbotapi.File, error) {
+	return tgbotapi.File{}, nil
 }
 
 func TestOneStepCreator(t *testing.T) {

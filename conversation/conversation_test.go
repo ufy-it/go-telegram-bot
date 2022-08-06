@@ -111,12 +111,20 @@ func (d *dummyBot) Send(msg tgbotapi.Chattable) (tgbotapi.Message, error) {
 	return tgbotapi.Message{MessageID: 333}, nil
 }
 
+func (d *dummyBot) GetFile(tgbotapi.FileConfig) (tgbotapi.File, error) {
+	return tgbotapi.File{}, nil
+}
+
 func (d *dummyBot) AnswerCallbackQuery(config tgbotapi.CallbackConfig) (tgbotapi.APIResponse, error) {
 	if d.ReplyError {
 		return tgbotapi.APIResponse{}, errors.New("dummy error")
 	}
 	d.Callbacks = append(d.Callbacks, config)
 	return tgbotapi.APIResponse{}, nil
+}
+
+func (d *dummyBot) GetFileDirectURL(fileID string) (string, error) {
+	return "", nil
 }
 
 func getSendMessageFunc(bot *dummyBot, id int64, text string) conversation.SpecialMessageFuncType {

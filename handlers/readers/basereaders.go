@@ -13,8 +13,11 @@ type BotConversation interface {
 	ConversationID() int64 // get conversation object ID
 
 	GetUpdateFromUser(ctx context.Context) (*tgbotapi.Update, bool) // read update from a user (will hang until a user sends new mupdate, or conversation is closed)
+	GetFile(fileID string) ([]byte, error)                          // get file from Telegram server
+	GetFileInfo(fileID string) (tgbotapi.File, error)               // get file info from Telegram server
 
 	NewPhotoShare(photoFileID string, caption string) tgbotapi.PhotoConfig // create a message with a Photo (should be uploaded to the telegram an caption)
+	NewPhotoUpload(fileData []byte, caption string) tgbotapi.PhotoConfig   // create a message with a Photo that uploads to the telegram an caption
 	NewMessage(text string) tgbotapi.MessageConfig                         // Create a new Text message with HTML parsing
 	NewMessagef(text string, args ...interface{}) tgbotapi.MessageConfig   // Create a new Text message with HTML parsing from text and parameters
 
