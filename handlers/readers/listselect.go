@@ -31,6 +31,13 @@ type UserIndexDataReply struct {
 	Exit  bool
 }
 
+// SelectItemFromList asks a user to select one or more items from the list of strings and returns indeces of selected items
+type UserSelectedIndecesReply struct {
+	Indeces []int
+	Data    string
+	Exit    bool
+}
+
 const (
 	prevPageButtonData = "__list_prev_page"
 	nextPageButtonData = "__list_next_page"
@@ -229,6 +236,9 @@ func MultySelectItemFromList(
 		Exit:  false,
 	}
 	selectedData := make(map[string]struct{})
+	for _, item := range selectedItems {
+		selectedData[item.Data] = struct{}{}
+	}
 	defer func() { //clear buttons after exit
 		if len(selected.Items) > 0 || filter != "" || !prevButtons.IsEmpty() {
 			err := conversation.EditMessageText(msgID, text)
@@ -362,4 +372,58 @@ func MultySelectItemFromList(
 			}
 		}
 	}
+}
+
+// MultySelectIndecesFromList returns indeces of selected items from list.
+func MultySelectIndecesFromList(
+	ctx context.Context,
+	conversation BotConversation,
+	text string,
+	items []string,
+	selectedIndeces []int,
+	pageSize int,
+	selectedText string,
+	removeSelectedText string,
+	navigation buttons.ButtonSet,
+	prevPageText string,
+	nextPageText string,
+	filterText string,
+	removeFilterText string) (UserSelectedIndecesReply, error) {
+	listItems := make([]ListItem, len(items))
+	for i, item := range items {
+		listItems[i] = ListItem{Text: item, Data: strconv.Itoa(i)}
+	}
+	selectedItems := make([]ListItem, len(selectedIndeces))
+	for i, index := range selectedIndeces {
+		selectedItems[i] = listItems[index]
+	}
+	reply, err := MultySelectItemFromList(
+		ctx,
+		conversation,
+		text,
+		listItems,
+		selectedItems,
+		pageSize,
+		selectedText,
+		removeSelectedText,
+		navigation,
+		prevPageText,
+		nextPageText,
+		filterText,
+		removeFilterText)
+	if err != nil {
+		return UserSelectedIndecesReply{}, err
+	}
+	result := UserSelectedIndecesReply{}
+	result.Data = reply.Data
+	result.Exit = reply.Exit
+	result.Indeces = make([]int, len(reply.Items))
+	for i, item := range reply.Items {
+		index, err := strconv.Atoi(item.Data)
+		if err != nil {
+			return UserSelectedIndecesReply{}, fmt.Errorf("failed to parse int index from command %s", item.Data)
+		}
+		result.Indeces[i] = index
+	}
+	return result, nil
 }
