@@ -35,7 +35,7 @@ type Handler interface {
 type HandlerCreatorType func(ctx context.Context, conversation readers.BotConversation) Handler
 
 // CommandSelectorType is a type of functor that should tell whether the handler matches the command
-type CommandSelectorType func(firstUpdate *tgbotapi.Update) bool
+type CommandSelectorType func(ctx context.Context, firstUpdate *tgbotapi.Update) bool
 
 // CommandHandler is a struct that contains regexp to determine start command for the handler and function-creator to build the handler
 type CommandHandler struct {

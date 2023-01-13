@@ -78,7 +78,7 @@ func (d *Dispatcher) handleConversation(ctx context.Context, conv *conversation.
 
 		selectHandlerFromList := func(list []handlers.CommandHandler, firstUpdate *tgbotapi.Update) handlers.Handler {
 			for _, creator := range list {
-				if creator.CommandSelector(update) {
+				if creator.CommandSelector(ctx, update) {
 					return creator.HandlerCreator(context.WithValue(ctx, handlers.FirstUpdateVariable, update), conv)
 				}
 			}
@@ -156,7 +156,7 @@ func (d *Dispatcher) dispatchUpdate(ctx context.Context, update *tgbotapi.Update
 	}
 
 	if conv, ok := d.conversations[chatID]; ok {
-		if d.isGlobalCommand(update) {
+		if d.isGlobalCommand(ctx, update) {
 			err := conv.c.CancelByUser()
 			conv.cancel()
 			delete(d.conversations, chatID)
@@ -283,9 +283,9 @@ func NewDispatcher(ctx context.Context, config Config, bot *tgbotapi.BotAPI, sta
 }
 
 // isGlobalCommand returns true if a user started a global command
-func (d *Dispatcher) isGlobalCommand(update *tgbotapi.Update) bool {
+func (d *Dispatcher) isGlobalCommand(ctx context.Context, update *tgbotapi.Update) bool {
 	for _, creator := range d.globalCommandHandlers {
-		if creator.CommandSelector(update) {
+		if creator.CommandSelector(ctx, update) {
 			return true
 		}
 	}

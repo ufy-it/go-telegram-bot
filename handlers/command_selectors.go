@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"regexp"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -9,7 +10,7 @@ import (
 // RegExpCommandSelector creates CommandSeletor that accepts command text if it matches a regular expression
 func RegExpCommandSelector(commandRe string) CommandSelectorType {
 	re := regexp.MustCompile(commandRe)
-	return func(firstUpdate *tgbotapi.Update) bool {
+	return func(ctx context.Context, firstUpdate *tgbotapi.Update) bool {
 		return firstUpdate != nil && firstUpdate.Message != nil && (re.MatchString(firstUpdate.Message.Text) || re.MatchString(firstUpdate.Message.Command()))
 	}
 }
@@ -17,7 +18,7 @@ func RegExpCommandSelector(commandRe string) CommandSelectorType {
 // RegExCallbackSelector creates CommandSelector that accepts callbeck data if it matches a regular expression
 func RegExCallbackSelector(callbackRe string) CommandSelectorType {
 	re := regexp.MustCompile(callbackRe)
-	return func(firstUpdate *tgbotapi.Update) bool {
+	return func(ctx context.Context, firstUpdate *tgbotapi.Update) bool {
 		return firstUpdate != nil && firstUpdate.CallbackQuery != nil && re.MatchString(firstUpdate.CallbackQuery.Data)
 	}
 }
@@ -29,16 +30,16 @@ func CommandOrCallbackRegExpSelector(commandRe, callbackRe string) CommandSelect
 
 // ImageSelector creates CommandSelector that accepts image
 func ImageSelector() CommandSelectorType {
-	return func(firstUpdate *tgbotapi.Update) bool {
+	return func(ctx context.Context, firstUpdate *tgbotapi.Update) bool {
 		return firstUpdate != nil && firstUpdate.Message != nil && firstUpdate.Message.Photo != nil
 	}
 }
 
 // OrSelecor creates CommandSelector that accepts command if any of inline selectors accept it
 func OrSelector(selectors ...CommandSelectorType) CommandSelectorType {
-	return func(firstUpdate *tgbotapi.Update) bool {
+	return func(ctx context.Context, firstUpdate *tgbotapi.Update) bool {
 		for _, selector := range selectors {
-			if selector(firstUpdate) {
+			if selector(ctx, firstUpdate) {
 				return true
 			}
 		}
@@ -48,9 +49,9 @@ func OrSelector(selectors ...CommandSelectorType) CommandSelectorType {
 
 // AndSelector creates CommandSelector that accepts command if all of inline selectors accept it
 func AndSelector(selectors ...CommandSelectorType) CommandSelectorType {
-	return func(firstUpdate *tgbotapi.Update) bool {
+	return func(ctx context.Context, firstUpdate *tgbotapi.Update) bool {
 		for _, selector := range selectors {
-			if !selector(firstUpdate) {
+			if !selector(ctx, firstUpdate) {
 				return false
 			}
 		}
@@ -60,7 +61,7 @@ func AndSelector(selectors ...CommandSelectorType) CommandSelectorType {
 
 // NotSelector creates CommandSelector that accepts command if inline selector does not accept it
 func NotSelector(selector CommandSelectorType) CommandSelectorType {
-	return func(firstUpdate *tgbotapi.Update) bool {
-		return !selector(firstUpdate)
+	return func(ctx context.Context, firstUpdate *tgbotapi.Update) bool {
+		return !selector(ctx, firstUpdate)
 	}
 }
