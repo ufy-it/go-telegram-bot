@@ -16,7 +16,7 @@ func TestEmptyGlobalMessageFunc(t *testing.T) {
 		ConversationEnded,
 	}
 	for _, id := range messageIDs {
-		if EmptyGlobalMessageFunc(777, id) != "" {
+		if EmptyTechnicalMessageFunc(777, id) != "" {
 			t.Errorf("non-empty string generated for message ID %d", id)
 		}
 	}

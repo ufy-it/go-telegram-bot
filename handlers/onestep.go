@@ -22,3 +22,10 @@ func OneStepHandlerCreator(handler OneStepCommandHandlerType) HandlerCreatorType
 			})
 	}
 }
+
+// EmptyHandlerCreator is a helper function to create handler with just one step and no user-data, the handler does nothing
+func EmptyHandlerCreator() HandlerCreatorType {
+	return OneStepHandlerCreator(func(ctx context.Context, conversation readers.BotConversation) error {
+		return nil
+	})
+}

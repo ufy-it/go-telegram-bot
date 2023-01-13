@@ -12,10 +12,10 @@ const (
 	ConversationEnded                             // a message to send to user after conversation was ended successfully
 )
 
-// GlobalMessageFuncType type of a function that should return global messages for a dedicated user
-type GlobalMessageFuncType func(chatID int64, messageID MessageIDType) string
+// TechnicalMessageFuncType type of a function that should return technical messages for a dedicated user
+type TechnicalMessageFuncType func(chatID int64, messageID MessageIDType) string
 
-// EmptyGlobalMessageFunc returns empty string for all messages
-func EmptyGlobalMessageFunc(chatID int64, messageID MessageIDType) string {
+// EmptyTechnicalMessageFunc returns empty string for all messages
+func EmptyTechnicalMessageFunc(chatID int64, messageID MessageIDType) string {
 	return ""
 }

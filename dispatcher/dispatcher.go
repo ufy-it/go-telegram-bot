@@ -34,7 +34,7 @@ type Dispatcher struct {
 
 	singleMessageTrySendInterval int
 
-	globalMessagesFunc GlobalMessageFuncType
+	globalMessagesFunc TechnicalMessageFuncType
 	globalKeyboardFunc GlobalKeyboardFuncType
 
 	bot   *tgbotapi.BotAPI
@@ -236,7 +236,7 @@ func NewDispatcher(ctx context.Context, config Config, bot *tgbotapi.BotAPI, sta
 		incomeCh:                     make(chan *tgbotapi.Update),
 		commandHandlers:              config.Handlers,
 		globalCommandHandlers:        config.GlobalHandlers,
-		globalMessagesFunc:           config.GlobalMessageFunc,
+		globalMessagesFunc:           config.TechnicalMessageFunc,
 		globalKeyboardFunc:           config.GloabalKeyboardFunc,
 	}
 	if d.commandHandlers == nil {
@@ -244,7 +244,7 @@ func NewDispatcher(ctx context.Context, config Config, bot *tgbotapi.BotAPI, sta
 	}
 
 	if d.globalMessagesFunc == nil {
-		d.globalMessagesFunc = EmptyGlobalMessageFunc
+		d.globalMessagesFunc = EmptyTechnicalMessageFunc
 		logger.Warning("GlobalMessageFunc was not set, will use EmptyGlobalMessageFunc")
 	}
 
