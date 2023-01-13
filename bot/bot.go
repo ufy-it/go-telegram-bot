@@ -149,12 +149,12 @@ func (c *botConfig) WithGlobalHandlers(handlers []handlers.CommandHandler) *botC
 
 // WithGlobalMessageFunc sets global message function for the bot
 // Global message function is called to generate technical messages that bot sends to users
-func (c *botConfig) WithTechnicalMessageFunc(globalMessageFunc dispatcher.TechnicalMessageFuncType) *botConfig {
-	c.dispatcherConfig.TechnicalMessageFunc = globalMessageFunc
+func (c *botConfig) WithTechnicalMessageFunc(technicalMessageFunc dispatcher.TechnicalMessageFuncType) *botConfig {
+	c.dispatcherConfig.TechnicalMessageFunc = technicalMessageFunc
 	return c
 }
 
-// WithGlobalKeyboardFunc sets global keyboard function for the bot
+// WithGlobalKeyboardFunc sets global keyboard function for the bot (by default nil)
 // Global keyboard function is called to generate keyboard that bot sends to users with technical messages
 // If global keyboard function is not set, the bot will not send any keyboard with technical messages
 // Command handlers can call this function to generate keyboard for a message if needed
