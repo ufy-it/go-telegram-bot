@@ -52,9 +52,7 @@ func (d *Dispatcher) handleConversation(ctx context.Context, conv *conversation.
 			d.mu.Lock() // to make sure that no new messagess will arrive to this conversation
 			update, exit = conv.GetFirstUpdateFromUser(ctx)
 			if exit {
-				if !conv.IsCanceled() { // otherwise it should be already deleted
-					delete(d.conversations, conv.ChatID()) // all new messages will go to a new go-routine
-				}
+				delete(d.conversations, conv.ChatID())                        // all new messages will go to a new go-routine
 				err := d.state.RemoveConverastionState(conv.ConversationID()) // this is still under the lock to prevent starting a new go-routine that uses the same state
 				d.mu.Unlock()
 				if err != nil {
