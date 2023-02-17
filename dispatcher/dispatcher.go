@@ -27,10 +27,11 @@ type Dispatcher struct {
 
 	mu sync.Mutex //mutex to sync operations over the conversations map between main thread and handler routins
 
-	conversations         map[int64]conversatonWithCancel
-	conversationConfig    conversation.Config
-	commandHandlers       *handlers.CommandHandlers // list of command handlers
-	globalCommandHandlers []handlers.CommandHandler // list of commands that can be started at any point of conversation
+	conversations          map[int64]conversatonWithCancel
+	chatIDtoConversationID map[int64]int64 // map from chatID to conversationID
+	conversationConfig     conversation.Config
+	commandHandlers        *handlers.CommandHandlers // list of command handlers
+	globalCommandHandlers  []handlers.CommandHandler // list of commands that can be started at any point of conversation
 
 	singleMessageTrySendInterval int
 
@@ -52,7 +53,10 @@ func (d *Dispatcher) handleConversation(ctx context.Context, conv *conversation.
 			d.mu.Lock() // to make sure that no new messagess will arrive to this conversation
 			update, exit = conv.GetFirstUpdateFromUser(ctx)
 			if exit {
-				delete(d.conversations, conv.ChatID())                        // all new messages will go to a new go-routine
+				delete(d.conversations, conv.ConversationID())                                                    // all new messages will go to a new go-routine
+				if convID, ok := d.chatIDtoConversationID[conv.ChatID()]; ok && convID == conv.ConversationID() { // remove chatID to conversationID mapping
+					delete(d.chatIDtoConversationID, conv.ChatID())
+				}
 				err := d.state.RemoveConverastionState(conv.ConversationID()) // this is still under the lock to prevent starting a new go-routine that uses the same state
 				d.mu.Unlock()
 				if err != nil {
@@ -148,23 +152,25 @@ func (d *Dispatcher) dispatchUpdate(ctx context.Context, update *tgbotapi.Update
 		}
 
 		convCtx, cancel := context.WithCancel(ctx)
-		d.conversations[chatID] = conversatonWithCancel{conv, cancel}
+		d.conversations[conv.ConversationID()] = conversatonWithCancel{conv, cancel}
+		d.chatIDtoConversationID[chatID] = conv.ConversationID()
 		go d.handleConversation(convCtx, conv)
 		return nil
 	}
-
-	if conv, ok := d.conversations[chatID]; ok {
-		if d.isGlobalCommand(ctx, update) {
-			err := conv.c.CancelByUser()
-			conv.cancel()
-			delete(d.conversations, chatID)
-			if err != nil {
-				return err
+	if convID, ok := d.chatIDtoConversationID[chatID]; ok {
+		if conv, ok := d.conversations[convID]; ok {
+			if d.isGlobalCommand(ctx, update) {
+				err := conv.c.CancelByUser()
+				conv.cancel()
+				if err != nil {
+					return err
+				}
+				return startNewConversation()
 			}
-			return startNewConversation()
+			return conv.c.PushUpdate(update)
 		}
-		return conv.c.PushUpdate(update)
-	} else if len(d.conversations) < d.maxOpenConversations {
+	}
+	if len(d.conversations) < d.maxOpenConversations {
 		return startNewConversation()
 	} else {
 		err := d.sendGlobalMessage(chatID, TooManyConversations)
@@ -225,6 +231,7 @@ func (d *Dispatcher) dispatchLoop(ctx context.Context) {
 func NewDispatcher(ctx context.Context, config Config, bot *tgbotapi.BotAPI, stateIO state.StateIO) (*Dispatcher, error) {
 	d := &Dispatcher{
 		conversations:                make(map[int64]conversatonWithCancel),
+		chatIDtoConversationID:       make(map[int64]int64),
 		conversationConfig:           config.ConversationConfig,
 		maxOpenConversations:         config.MaxOpenConversations,
 		singleMessageTrySendInterval: config.SingleMessageTrySendInterval,
@@ -269,8 +276,9 @@ func NewDispatcher(ctx context.Context, config Config, bot *tgbotapi.BotAPI, sta
 			continue
 		}
 		convCtx, cancel := context.WithCancel(ctx)
-		d.conversations[chatID] = conversatonWithCancel{conv, cancel}
-		if _, ok := d.conversations[chatID]; !ok {
+		d.conversations[conversationID] = conversatonWithCancel{conv, cancel}
+		d.chatIDtoConversationID[chatID] = conversationID
+		if _, ok := d.conversations[conversationID]; !ok {
 			logger.Warning("cannot start conversation with %d from state", conversationID)
 		} else {
 			go d.handleConversation(convCtx, conv)
@@ -301,7 +309,7 @@ func (d *Dispatcher) SendSingleMessage(ctx context.Context, chatID int64, text s
 		default:
 		}
 		d.mu.Lock()
-		if _, ongoingConversation := d.conversations[chatID]; !ongoingConversation {
+		if _, ongoingConversation := d.chatIDtoConversationID[chatID]; !ongoingConversation {
 			_, err := d.bot.Send(msg)
 			d.mu.Unlock()
 			return err
