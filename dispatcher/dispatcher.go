@@ -137,9 +137,9 @@ func (d *Dispatcher) dispatchUpdate(ctx context.Context, update *tgbotapi.Update
 		conv, err := conversation.NewConversation(chatID,
 			d.bot,
 			d.state,
-			d.generateSpecialMesaageFunc(chatID, TooManyMessages),
-			d.generateSpecialMesaageFunc(chatID, ConversationClosedByBot),
-			d.generateSpecialMesaageFunc(chatID, ConversationClosedByUser),
+			d.generateSpecialMessageFunc(chatID, TooManyMessages),
+			d.generateSpecialMessageFunc(chatID, ConversationClosedByBot),
+			d.generateSpecialMessageFunc(chatID, ConversationClosedByUser),
 			d.generateGlobalKeyboardFunc(chatID),
 			d.conversationConfig)
 		if err != nil {
@@ -193,8 +193,8 @@ func (d *Dispatcher) sendGlobalMessage(chatID int64, messageID MessageIDType) er
 	return err
 }
 
-// generateSpecialMesaageFunc creates a function that sends selected general message to the specified chat
-func (d *Dispatcher) generateSpecialMesaageFunc(chatID int64, messageID MessageIDType) conversation.SpecialMessageFuncType {
+// generateSpecialMessageFunc creates a function that sends selected general message to the specified chat
+func (d *Dispatcher) generateSpecialMessageFunc(chatID int64, messageID MessageIDType) conversation.SpecialMessageFuncType {
 	return func() error {
 		return d.sendGlobalMessage(chatID, messageID)
 	}
@@ -266,9 +266,9 @@ func NewDispatcher(ctx context.Context, config Config, bot *tgbotapi.BotAPI, sta
 			chatID,
 			d.bot,
 			d.state,
-			d.generateSpecialMesaageFunc(chatID, TooManyConversations),
-			d.generateSpecialMesaageFunc(chatID, ConversationClosedByBot),
-			d.generateSpecialMesaageFunc(chatID, ConversationClosedByUser),
+			d.generateSpecialMessageFunc(chatID, TooManyConversations),
+			d.generateSpecialMessageFunc(chatID, ConversationClosedByBot),
+			d.generateSpecialMessageFunc(chatID, ConversationClosedByUser),
 			d.generateGlobalKeyboardFunc(chatID),
 			d.conversationConfig)
 		if err != nil {
