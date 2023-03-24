@@ -61,5 +61,5 @@ func (d defaultLogger) Note(format string, params ...interface{}) {
 
 // Panic prints an error into the log and calls panic()
 func (d defaultLogger) Panic(format string, params ...interface{}) {
-	log.Printf("[Panic] "+format, params...)
+	log.Panicf("[Panic] "+format, params...)
 }
