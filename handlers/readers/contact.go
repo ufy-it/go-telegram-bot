@@ -25,7 +25,7 @@ func RequestUserContact(ctx context.Context, conversation BotConversation, messa
 	}
 	if !exit && err == nil {
 		finalMsg := conversation.NewMessage(finalMessage)
-		finalMsg.ReplyMarkup = buttons.RemoveKeyboard()
+		finalMsg.ReplyMarkup = conversation.GlobalKeyboard()
 		_, err = conversation.SendGeneralMessage(finalMsg)
 	}
 	return contact, exit, err
