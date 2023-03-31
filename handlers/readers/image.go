@@ -12,7 +12,7 @@ import (
 type UserImageAndDataReply struct {
 	Exit  bool
 	Data  string
-	Image tgbotapi.PhotoSize
+	Image []tgbotapi.PhotoSize
 }
 
 // GetImage asks a user to send image
@@ -30,7 +30,7 @@ func GetImage(ctx context.Context, conversation BotConversation, text string, na
 		result.Data = reply.CallbackQuery.Data
 	}
 	if reply != nil && reply.Message != nil && reply.Message.Photo != nil && len(reply.Message.Photo) > 0 {
-		result.Image = (reply.Message.Photo)[0]
+		result.Image = reply.Message.Photo
 	}
 	return result, err
 }
