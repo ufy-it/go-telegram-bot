@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ufy-it/go-telegram-bot/handlers/buttons"
 	"github.com/ufy-it/go-telegram-bot/jobs"
 )
 
@@ -26,8 +27,12 @@ func newMockMessager() *mockMessager {
 	}
 }
 
-func (m *mockMessager) SendSingleMessage(ctx context.Context, chatID int64, text string) error {
+func (m *mockMessager) SendSingleMessage(ctx context.Context, chatID int64, text string, keyboard *buttons.ButtonSet) error {
 	m.messages = append(m.messages, mockMessage{chatID, text})
+	return nil
+}
+
+func (m *mockMessager) SendSinglePhoto(ctx context.Context, chatID int64, photo []byte, caption string, keyboard *buttons.ButtonSet) error {
 	return nil
 }
 
@@ -38,7 +43,7 @@ func TestJobIntervals(t *testing.T) {
 	job := func(ctx context.Context, messager jobs.Messager) error {
 		if ind < 3 {
 			c <- struct{}{}
-			messager.SendSingleMessage(ctx, int64(ind), strconv.Itoa(ind))
+			messager.SendSingleMessage(ctx, int64(ind), strconv.Itoa(ind), nil)
 			ind++
 		}
 		return nil

@@ -1,6 +1,7 @@
 package dispatcher
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/ufy-it/go-telegram-bot/conversation"
 	"github.com/ufy-it/go-telegram-bot/handlers"
+	"github.com/ufy-it/go-telegram-bot/handlers/buttons"
 	"github.com/ufy-it/go-telegram-bot/logger"
 	"github.com/ufy-it/go-telegram-bot/state"
 
@@ -298,10 +300,8 @@ func (d *Dispatcher) isGlobalCommand(ctx context.Context, update *tgbotapi.Updat
 	return false
 }
 
-// SendSingleMessage waits until the conversation with chatID is closed and sends a single message from bot to a user
-func (d *Dispatcher) SendSingleMessage(ctx context.Context, chatID int64, text string) error {
+func (d *Dispatcher) sendSingleGeneralMessage(ctx context.Context, chatID int64, message tgbotapi.Chattable) error {
 	closedErr := errors.New("cannot send a message, context closed")
-	msg := tgbotapi.NewMessage(chatID, text)
 	for {
 		select {
 		case <-ctx.Done():
@@ -310,13 +310,37 @@ func (d *Dispatcher) SendSingleMessage(ctx context.Context, chatID int64, text s
 		}
 		d.mu.Lock()
 		if _, ongoingConversation := d.chatIDtoConversationID[chatID]; !ongoingConversation {
-			_, err := d.bot.Send(msg)
+			_, err := d.bot.Send(message)
 			d.mu.Unlock()
 			return err
 		}
 		d.mu.Unlock()
 		time.Sleep(time.Duration(time.Duration(d.singleMessageTrySendInterval) * time.Second))
 	}
+}
+
+// SendSingleMessage waits until the conversation with chatID is closed and sends a single message from bot to a user
+func (d *Dispatcher) SendSingleMessage(ctx context.Context, chatID int64, text string, keyboard *buttons.ButtonSet) error {
+	msg := tgbotapi.NewMessage(chatID, text)
+	if keyboard != nil && !keyboard.IsEmpty() {
+		msg.ReplyMarkup = keyboard.GetInlineKeyboard()
+	}
+	return d.sendSingleGeneralMessage(ctx, chatID, msg)
+}
+
+func (d *Dispatcher) SendSinglePhoto(ctx context.Context, chatID int64, photo []byte, caption string, keyboard *buttons.ButtonSet) error {
+	msg := tgbotapi.NewPhoto(chatID, tgbotapi.FileReader{
+		Name:   "image.png",
+		Reader: bytes.NewReader(photo),
+	})
+	msg.ParseMode = "HTML"
+	if keyboard != nil && !keyboard.IsEmpty() {
+		msg.ReplyMarkup = keyboard.GetInlineKeyboard()
+	}
+	if caption != "" {
+		msg.Caption = caption
+	}
+	return d.sendSingleGeneralMessage(ctx, chatID, msg)
 }
 
 // DispatchUpdate routes an update to the target conversation, or creates a new conversation

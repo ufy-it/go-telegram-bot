@@ -345,6 +345,16 @@ func (c *BotConversation) NewPhotoUpload(fileData []byte, caption string) tgbota
 	return msg
 }
 
+func (c *BotConversation) NewDocumentUpload(fileData []byte, caption string, filename string) tgbotapi.DocumentConfig {
+	msg := tgbotapi.NewDocument(c.chatID, tgbotapi.FileReader{
+		Name:   filename,
+		Reader: bytes.NewReader(fileData),
+	})
+	msg.Caption = caption
+	msg.ParseMode = "HTML"
+	return msg
+}
+
 // EditMessageText changes text of an existing message (ReplyMarkup will be deleted)
 func (c *BotConversation) EditMessageText(messageID int, text string) error {
 	msg := tgbotapi.NewEditMessageText(c.chatID, messageID, text)

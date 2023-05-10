@@ -4,12 +4,14 @@ import (
 	"context"
 	"time"
 
+	"github.com/ufy-it/go-telegram-bot/handlers/buttons"
 	"github.com/ufy-it/go-telegram-bot/logger"
 )
 
 // Messager is an interface for an object that can send a text message to a chat. In production it should be a Dispatcher object
 type Messager interface {
-	SendSingleMessage(ctx context.Context, chatID int64, text string) error // send single text message to chat with ID=chatID, might take time
+	SendSingleMessage(ctx context.Context, chatID int64, text string, keyboard *buttons.ButtonSet) error                // send single text message to chat with ID=chatID, might take time
+	SendSinglePhoto(ctx context.Context, chatID int64, photo []byte, caption string, keyboard *buttons.ButtonSet) error // send single photo to chat with ID=chatID, might take time
 }
 
 // JobBody a type for a job-function

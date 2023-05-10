@@ -39,6 +39,10 @@ func (mc *mockConversation) NewPhotoUpload(fileData []byte, caption string) tgbo
 	return tgbotapi.PhotoConfig{}
 }
 
+func (mc *mockConversation) NewDocumentUpload(fileData []byte, caption string, filename string) tgbotapi.DocumentConfig {
+	return tgbotapi.DocumentConfig{}
+}
+
 func (mc *mockConversation) NewMessage(text string) tgbotapi.MessageConfig {
 	return tgbotapi.MessageConfig{}
 }

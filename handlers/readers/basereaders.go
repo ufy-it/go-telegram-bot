@@ -16,10 +16,11 @@ type BotConversation interface {
 	GetFile(fileID string) ([]byte, error)                          // get file from Telegram server
 	GetFileInfo(fileID string) (tgbotapi.File, error)               // get file info from Telegram server
 
-	NewPhotoShare(photoFileID string, caption string) tgbotapi.PhotoConfig // create a message with a Photo (should be uploaded to the telegram an caption)
-	NewPhotoUpload(fileData []byte, caption string) tgbotapi.PhotoConfig   // create a message with a Photo that uploads to the telegram an caption
-	NewMessage(text string) tgbotapi.MessageConfig                         // Create a new Text message with HTML parsing
-	NewMessagef(text string, args ...interface{}) tgbotapi.MessageConfig   // Create a new Text message with HTML parsing from text and parameters
+	NewPhotoShare(photoFileID string, caption string) tgbotapi.PhotoConfig                      // create a message with a Photo (should be uploaded to the telegram an caption)
+	NewPhotoUpload(fileData []byte, caption string) tgbotapi.PhotoConfig                        // create a message with a Photo that uploads to the telegram an caption
+	NewDocumentUpload(fileData []byte, caption string, filename string) tgbotapi.DocumentConfig // create a message with a Document that uploads to the telegram an caption
+	NewMessage(text string) tgbotapi.MessageConfig                                              // Create a new Text message with HTML parsing
+	NewMessagef(text string, args ...interface{}) tgbotapi.MessageConfig                        // Create a new Text message with HTML parsing from text and parameters
 
 	SendGeneralMessage(msg tgbotapi.Chattable) (int, error)                         // send general message to a user. This method is not safe, so use it as less as possible
 	SendGeneralMessageWithKeyboardRemoveOnExit(msg tgbotapi.Chattable) (int, error) // send general message and ask conversation object to remove reply markup from this message in case of cancel event. the remove will be applied only to the latest message
