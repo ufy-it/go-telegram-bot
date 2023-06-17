@@ -100,6 +100,10 @@ func (bs *botState) saveState() error {
 		return fmt.Errorf("cannot marshal state to json: %v", err)
 	}
 
+	if bs.io == nil {
+		return errors.New("state io is not defined")
+	}
+
 	err = bs.io.Save(content)
 	if err != nil {
 		return fmt.Errorf("cannot save state to io: %v", err)
