@@ -229,4 +229,4 @@ if err != nil { // cannot start the bot
 ```
 
 ### TO DO
-* Add rich logic for managing conversation with several users in one chat
+* 

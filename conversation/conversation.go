@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -99,22 +99,13 @@ func GetUpdateChatID(update *tgbotapi.Update) (int64, error) {
 	if update == nil {
 		return 0, errors.New("update is nil")
 	}
-	if update.Message != nil {
-		if update.Message.Chat == nil {
-			return 0, errors.New("expected chat field in update, got nil")
-		}
-		return update.Message.Chat.ID, nil
+	if update.CallbackQuery != nil && update.CallbackQuery.Message == nil {
+		return 0, errors.New("expected message field in callback query, got nil")
 	}
-	if update.CallbackQuery != nil {
-		if update.CallbackQuery.Message == nil {
-			return 0, errors.New("expected message field in update, got nil")
-		}
-		if update.CallbackQuery.Message.Chat == nil {
-			return 0, errors.New("expected chat field in update, got nil")
-		}
-		return update.CallbackQuery.Message.Chat.ID, nil
+	if update.FromChat() == nil {
+		return 0, errors.New("expected chat field in update, got nil")
 	}
-	return 0, errors.New("usupported query type")
+	return update.FromChat().ID, nil
 }
 
 // BotConversation struct handlers all conversation-related data
@@ -398,7 +389,7 @@ func (c *BotConversation) GetFile(fileID string) ([]byte, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	return ioutil.ReadAll(resp.Body)
+	return io.ReadAll(resp.Body)
 }
 
 // GetFile gets file info from Telegram

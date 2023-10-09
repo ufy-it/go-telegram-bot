@@ -63,7 +63,7 @@ func TestGetUpdateChatID(t *testing.T) {
 	id, err = conversation.GetUpdateChatID(&tgbotapi.Update{})
 
 	checkID(0, id)
-	checkErr(errors.New("usupported query type"), err)
+	checkErr(errors.New("expected chat field in update, got nil"), err)
 
 	id, err = conversation.GetUpdateChatID(
 		&tgbotapi.Update{
@@ -86,7 +86,7 @@ func TestGetUpdateChatID(t *testing.T) {
 			CallbackQuery: &tgbotapi.CallbackQuery{},
 		})
 	checkID(0, id)
-	checkErr(errors.New("expected message field in update, got nil"), err)
+	checkErr(errors.New("expected message field in callback query, got nil"), err)
 }
 
 type dummyBot struct {
@@ -222,7 +222,7 @@ func TestPushUpdate(t *testing.T) {
 	}
 	update := tgbotapi.Update{} // unsupported update type
 	err = conv.PushUpdate(&update)
-	if err == nil || err.Error() != "usupported query type" {
+	if err == nil || err.Error() != "expected chat field in update, got nil" {
 		t.Errorf("unexpected error: %v", err)
 	}
 
