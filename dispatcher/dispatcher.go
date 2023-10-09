@@ -328,6 +328,16 @@ func (d *Dispatcher) SendSingleMessage(ctx context.Context, chatID int64, text s
 	return d.sendSingleGeneralMessage(ctx, chatID, msg)
 }
 
+// SendSingleMessageWithMarkup waits until the conversation with chatID is closed and sends a single message with HTML markup from bot to a user
+func (d *Dispatcher) SendSingleMessageWithMarkup(ctx context.Context, chatID int64, text string, keyboard *buttons.ButtonSet) error {
+	msg := tgbotapi.NewMessage(chatID, text)
+	msg.ParseMode = "HTML"
+	if keyboard != nil && !keyboard.IsEmpty() {
+		msg.ReplyMarkup = keyboard.GetInlineKeyboard()
+	}
+	return d.sendSingleGeneralMessage(ctx, chatID, msg)
+}
+
 func (d *Dispatcher) SendSinglePhoto(ctx context.Context, chatID int64, photo []byte, caption string, keyboard *buttons.ButtonSet) error {
 	msg := tgbotapi.NewPhoto(chatID, tgbotapi.FileReader{
 		Name:   "image.png",

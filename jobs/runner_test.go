@@ -32,6 +32,11 @@ func (m *mockMessager) SendSingleMessage(ctx context.Context, chatID int64, text
 	return nil
 }
 
+func (m *mockMessager) SendSingleMessageWithMarkup(ctx context.Context, chatID int64, text string, keyboard *buttons.ButtonSet) error {
+	m.messages = append(m.messages, mockMessage{chatID, text})
+	return nil
+}
+
 func (m *mockMessager) SendSinglePhoto(ctx context.Context, chatID int64, photo []byte, caption string, keyboard *buttons.ButtonSet) error {
 	return nil
 }

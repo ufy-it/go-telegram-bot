@@ -11,6 +11,7 @@ import (
 // Messager is an interface for an object that can send a text message to a chat. In production it should be a Dispatcher object
 type Messager interface {
 	SendSingleMessage(ctx context.Context, chatID int64, text string, keyboard *buttons.ButtonSet) error                // send single text message to chat with ID=chatID, might take time
+	SendSingleMessageWithMarkup(ctx context.Context, chatID int64, text string, keyboard *buttons.ButtonSet) error      // send single text message to chat with ID=chatID, might take time, allows HTML markup
 	SendSinglePhoto(ctx context.Context, chatID int64, photo []byte, caption string, keyboard *buttons.ButtonSet) error // send single photo to chat with ID=chatID, might take time
 }
 
