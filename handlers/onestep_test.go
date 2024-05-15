@@ -107,6 +107,10 @@ func (mc *mockConversation) GetFile(fileID string) ([]byte, error) {
 	return nil, nil
 }
 
+func (mc *mockConversation) GetFileDirectURL(fileID string) (string, error) {
+	return "", nil
+}
+
 func (mc *mockConversation) GetFileInfo(fileID string) (tgbotapi.File, error) {
 	return tgbotapi.File{}, nil
 }
