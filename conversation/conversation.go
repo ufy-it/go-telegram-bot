@@ -392,6 +392,15 @@ func (c *BotConversation) GetFile(fileID string) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
+// GetFileDirectURL returns direct URL to the file
+func (c *BotConversation) GetFileDirectURL(fileID string) (string, error) {
+	url, err := c.bot.GetFileDirectURL(fileID)
+	if err != nil {
+		return "", err
+	}
+	return url, nil
+}
+
 // GetFile gets file info from Telegram
 func (c *BotConversation) GetFileInfo(fileID string) (tgbotapi.File, error) {
 	return c.bot.GetFile(tgbotapi.FileConfig{
